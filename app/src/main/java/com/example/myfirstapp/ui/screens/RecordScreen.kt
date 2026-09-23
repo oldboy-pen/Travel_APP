@@ -2,7 +2,9 @@ package com.example.myfirstapp.ui.screens
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -18,7 +20,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.TextFields
-import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -56,6 +57,20 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
     val data by TrackRecorder.data.collectAsStateWithLifecycle()
     var noteText by remember { mutableStateOf("") }
     var showWaypointSettings by remember { mutableStateOf(false) }
+    var pendingType by remember { mutableStateOf<com.example.myfirstapp.track.WaypointType?>(null) }
+
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            val type = pendingType ?: com.example.myfirstapp.track.WaypointType.PHOTO
+            TrackRecorder.addWaypoint(
+                type = type,
+                text = noteText.ifBlank { "${type.name.lowercase()} 标记 ${data.waypoints.size + 1}" },
+                mediaUri = uri.toString()
+            )
+            noteText = ""
+            pendingType = null
+        }
+    }
 
     // ---- 权限：定位（Android 6+）+ 通知（Android 13+，前台服务需要） ----
     var permissionsGranted by remember {
@@ -163,33 +178,32 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
                                     icon = Icons.Default.TextFields,
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    TrackRecorder.addWaypoint(
-                                        type = com.example.myfirstapp.track.WaypointType.TEXT,
-                                        text = noteText.ifBlank { "文字标记 ${data.waypoints.size + 1}" }
-                                    )
-                                    noteText = ""
+                                    if (noteText.isBlank()) {
+                                        showWaypointSettings = true
+                                    } else {
+                                        TrackRecorder.addWaypoint(
+                                            type = com.example.myfirstapp.track.WaypointType.TEXT,
+                                            text = noteText,
+                                            name = "文字标记 ${data.waypoints.size + 1}"
+                                        )
+                                        noteText = ""
+                                    }
                                 }
                                 RecordQuickActionButton(
                                     label = "拍摄",
                                     icon = Icons.Default.CameraAlt,
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    TrackRecorder.addWaypoint(
-                                        type = com.example.myfirstapp.track.WaypointType.PHOTO,
-                                        text = "图片标记 ${data.waypoints.size + 1}",
-                                        mediaUri = "photo://capture"
-                                    )
+                                    pendingType = com.example.myfirstapp.track.WaypointType.PHOTO
+                                    photoPicker.launch("image/*")
                                 }
                                 RecordQuickActionButton(
                                     label = "语音",
                                     icon = Icons.Default.Mic,
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    TrackRecorder.addWaypoint(
-                                        type = com.example.myfirstapp.track.WaypointType.VOICE,
-                                        text = "语音标记 ${data.waypoints.size + 1}",
-                                        mediaUri = "voice://record"
-                                    )
+                                    pendingType = com.example.myfirstapp.track.WaypointType.VOICE
+                                    photoPicker.launch("audio/*")
                                 }
                                 RecordQuickActionButton(
                                     label = "设置",
@@ -207,11 +221,32 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
                                     value = noteText,
                                     onValueChange = { noteText = it },
                                     modifier = Modifier.fillMaxWidth(),
-                                    placeholder = { Text("为当前打点添加说明…") },
+                                    placeholder = { Text("为当前打点添加文字、说明或备注…") },
                                     minLines = 2,
                                     maxLines = 3,
                                     shape = RoundedCornerShape(12.dp)
                                 )
+                                Spacer(Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End
+                                ) {
+                                    TextButton(
+                                        onClick = {
+                                            if (noteText.isNotBlank()) {
+                                                TrackRecorder.addWaypoint(
+                                                    type = com.example.myfirstapp.track.WaypointType.TEXT,
+                                                    text = noteText,
+                                                    name = "文字标记 ${data.waypoints.size + 1}"
+                                                )
+                                                noteText = ""
+                                            }
+                                            showWaypointSettings = false
+                                        }
+                                    ) {
+                                        Text("保存备注")
+                                    }
+                                }
                             }
 
                             Spacer(Modifier.height(12.dp))

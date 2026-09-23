@@ -1,14 +1,22 @@
 package com.example.myfirstapp.ui.screens
 
 import android.content.Intent
+import android.graphics.BitmapFactory
+import android.media.MediaPlayer
+import android.net.Uri
 import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.IosShare
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -127,13 +135,7 @@ fun TrackDetailScreen(trackId: String, onBack: () -> Unit) {
                     fontWeight = FontWeight.Bold
                 )
                 t.waypoints.forEach { w ->
-                    ListItem(
-                        headlineContent = { Text(w.name) },
-                        supportingContent = {
-                            Text("%.5f, %.5f".format(w.latitude, w.longitude),
-                                style = MaterialTheme.typography.bodySmall)
-                        }
-                    )
+                    WaypointDetailCard(w = w, context = context)
                 }
             } else {
                 Text(
@@ -203,5 +205,90 @@ private fun DetailStat(value: String, label: String) {
         Text(value, fontSize = 17.sp, fontWeight = FontWeight.Bold)
         Text(label, style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun WaypointDetailCard(w: com.example.myfirstapp.track.Waypoint, context: Context) {
+    val typeIcon = when (w.type) {
+        com.example.myfirstapp.track.WaypointType.TEXT -> Icons.Default.TextFields
+        com.example.myfirstapp.track.WaypointType.PHOTO -> Icons.Default.CameraAlt
+        com.example.myfirstapp.track.WaypointType.VIDEO -> Icons.Default.Videocam
+        com.example.myfirstapp.track.WaypointType.VOICE -> Icons.Default.Mic
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(typeIcon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(8.dp))
+                Text(w.name, fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Text("类型：${w.type.name} · ${SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.CHINA).format(Date(w.time))}")
+            Text("坐标：%.5f, %.5f".format(w.latitude, w.longitude), style = MaterialTheme.typography.bodySmall)
+
+            if (!w.text.isNullOrBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = w.text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            if (!w.mediaUri.isNullOrBlank()) {
+                Spacer(Modifier.height(10.dp))
+                when (w.type) {
+                    com.example.myfirstapp.track.WaypointType.PHOTO -> {
+                        val uri = Uri.parse(w.mediaUri)
+                        val stream = try {
+                            context.contentResolver.openInputStream(uri)
+                        } catch (_: Exception) { null }
+                        val bitmap = stream?.use { BitmapFactory.decodeStream(it) }
+                        if (bitmap != null) {
+                            Image(
+                                bitmap = androidx.compose.ui.graphics.asImageBitmap(bitmap),
+                                contentDescription = w.name,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp)
+                            )
+                        }
+                    }
+                    com.example.myfirstapp.track.WaypointType.VIDEO -> {
+                        val uri = Uri.parse(w.mediaUri)
+                        Button(
+                            onClick = {
+                                val intent = Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(uri, "video/*")
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(intent)
+                            }
+                        ) { Text("播放视频") }
+                    }
+                    com.example.myfirstapp.track.WaypointType.VOICE -> {
+                        val uri = Uri.parse(w.mediaUri)
+                        Button(
+                            onClick = {
+                                val intent = Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(uri, "audio/*")
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(intent)
+                            }
+                        ) { Text("播放语音") }
+                    }
+                    else -> Unit
+                }
+            }
+        }
     }
 }
