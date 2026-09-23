@@ -21,9 +21,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.myfirstapp.ui.screens.HomeScreen
 import com.example.myfirstapp.ui.screens.MapScreen
 import com.example.myfirstapp.ui.screens.RecordScreen
-import com.example.myfirstapp.ui.screens.TodoScreen
 import com.example.myfirstapp.ui.screens.TrackDetailScreen
 import com.example.myfirstapp.ui.screens.TrackHistoryScreen
 
@@ -31,10 +31,10 @@ import com.example.myfirstapp.ui.screens.TrackHistoryScreen
 private data class TabItem(val route: String, val label: String, val icon: ImageVector)
 
 private val tabs = listOf(
-    TabItem("todo", "待办", Icons.Default.List),
+    TabItem("home", "首页", Icons.Default.List),
     TabItem("map", "地图", Icons.Default.LocationOn),
     TabItem("record", "运动", Icons.Default.Hiking),
-    TabItem("history", "轨迹库", Icons.Default.Route)
+    TabItem("history", "我的", Icons.Default.Route)
 )
 
 /**
@@ -74,10 +74,10 @@ fun AppRoot() {
     ) { padding ->
         NavHost(
             navController = navController,
-            startDestination = "todo",
+            startDestination = "home",
             modifier = Modifier.padding(padding)
         ) {
-            composable("todo") { TodoScreen() }
+            composable("home") { HomeScreen(onOpenTrack = { id -> navController.navigateToTrackDetail(id) }) }
             composable("map") { MapScreen() }
             composable("record") {
                 RecordScreen(onTrackSaved = { id -> navController.navigateToTrackDetail(id) })
