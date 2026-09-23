@@ -1,0 +1,400 @@
+-- Merging decision tree log ---
+provider#androidx.core.content.FileProvider
+INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:49:9-57:20
+	android:grantUriPermissions
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:53:13-47
+	android:authorities
+		INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:51:13-64
+	android:exported
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:52:13-37
+	android:name
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:50:13-62
+manifest
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:2:1-70:12
+INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:2:1-70:12
+INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:2:1-70:12
+INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:2:1-70:12
+MERGED from [androidx.navigation:navigation-common:2.8.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\997858211be3bbe24bf42bf2f74d3e96\transformed\navigation-common-2.8.1\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.navigation:navigation-runtime:2.8.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\80fae5603c09ad23ef1f9c32c789951d\transformed\navigation-runtime-2.8.1\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.navigation:navigation-common-ktx:2.8.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\ce10e2c08c88dfc28cafcd201bfb0f07\transformed\navigation-common-ktx-2.8.1\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.navigation:navigation-runtime-ktx:2.8.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\b3b048f3211f3317d3567b4ee0b15c39\transformed\navigation-runtime-ktx-2.8.1\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.navigation:navigation-compose:2.8.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\47c31a99e4949c4a72c0f0796a40f96e\transformed\navigation-compose-2.8.1\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.material3:material3-android:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\c5aa42310403cfd2baf80e8390c33bda\transformed\material3-release\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.savedstate:savedstate-ktx:1.2.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\cc12b54c1ec01b702824decf6132932e\transformed\savedstate-ktx-1.2.1\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.compose.material:material-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\38c66d3d1eb0e08e9efa44d7230bf154\transformed\material-release\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.savedstate:savedstate:1.2.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\607b8606b11a8640e70c0d4c7fead62b\transformed\savedstate-1.2.1\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.compose.animation:animation-core-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\78ee74791c9e850ac8d25564419bcbfe\transformed\animation-core-release\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.material:material-ripple-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\e867e4d7af3ea718f442c3a7e8ab4401\transformed\material-ripple-release\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.animation:animation-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\22b5ecfb4d843b2a9af3442dcfe411f5\transformed\animation-release\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.foundation:foundation-layout-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\a863ca7152658eead254b5e86ebde1d4\transformed\foundation-layout-release\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.foundation:foundation-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\018b6fc1b350bb6b6865bbac941fdb6e\transformed\foundation-release\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.ui:ui-tooling-data-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\69df7ec613a36e971491617329d08999\transformed\ui-tooling-data-release\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.ui:ui-unit-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fc31083b1ce932d0528751e717f30506\transformed\ui-unit-release\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.ui:ui-geometry-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\616889654c8b56b0c2cc046511876e93\transformed\ui-geometry-release\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.ui:ui-util-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\6e29f785c95fbc94623b5478aed18ce3\transformed\ui-util-release\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.ui:ui-tooling-preview-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\7012b7df8a5d651d94b5f6009790b540\transformed\ui-tooling-preview-release\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.compose.ui:ui-graphics-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\192a021ab421105abc46f514ba957fd4\transformed\ui-graphics-release\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.ui:ui-text-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\b637eb61955f6c3e5f01fbdba07ba681\transformed\ui-text-release\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:17:1-35:12
+MERGED from [androidx.lifecycle:lifecycle-process:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\82e752d385e3ef04a6944643896d10cc\transformed\lifecycle-process-2.8.6\AndroidManifest.xml:17:1-35:12
+MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\2bcb0bc59bd8ff08d600bbe0cdeeb61b\transformed\lifecycle-livedata-core-2.8.6\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-android:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\da2f190283de21a2ea2ddfde0099f33d\transformed\lifecycle-viewmodel-release\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.lifecycle:lifecycle-runtime-android:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\199711cbf70d970acaa4665cae46c0ff\transformed\lifecycle-runtime-release\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-savedstate:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\40c1f6e90a4d728e89625f1bbce0f2d0\transformed\lifecycle-viewmodel-savedstate-2.8.6\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\95598a8748ab7b60caca8372bbb35c99\transformed\lifecycle-viewmodel-ktx-2.8.6\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.lifecycle:lifecycle-runtime-compose-android:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\aaf4ed58853de40aca9cc21aba8de24b\transformed\lifecycle-runtime-compose-release\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.lifecycle:lifecycle-runtime-ktx-android:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\2133e7f8e1f946aff08e69f832408b0c\transformed\lifecycle-runtime-ktx-release\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-compose-android:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\205c84b25b2b1008b50a01026c8fa601\transformed\lifecycle-viewmodel-compose-release\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.material:material-icons-extended-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\01d0fbac514c6a5e2b649cf76d57410a\transformed\material-icons-extended-release\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.material:material-icons-core-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\4d19145306a08180dd4c82df4c672ed2\transformed\material-icons-core-release\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.ui:ui-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\2d68b35114f440d97864892b94d07a2f\transformed\ui-release\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.ui:ui-tooling-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\463ab415684a6e63012533bfbcfb0f94\transformed\ui-tooling-release\AndroidManifest.xml:17:1-28:12
+MERGED from [androidx.activity:activity-compose:1.9.2] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\0c69d25d23ab19362b3e1668ea951c85\transformed\activity-compose-1.9.2\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.activity:activity-ktx:1.9.2] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\4b1be4391640fed3f15e3cd04b37771e\transformed\activity-ktx-1.9.2\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.activity:activity:1.9.2] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\7e0cb806481e8cc822096f4f8f1453b4\transformed\activity-1.9.2\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.autofill:autofill:1.0.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\e11395d4803e914d0c46146340e2f69c\transformed\autofill-1.0.0\AndroidManifest.xml:17:1-24:12
+MERGED from [androidx.graphics:graphics-path:1.0.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\2c4f2d08b6e10cd10ee6932bde4810d2\transformed\graphics-path-1.0.1\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.core:core:1.13.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\39c959e831ef0955c53f279c093379dd\transformed\core-1.13.1\AndroidManifest.xml:17:1-30:12
+MERGED from [androidx.customview:customview-poolingcontainer:1.0.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\5c15e5bab3c7faa61f8082c808329c70\transformed\customview-poolingcontainer-1.0.0\AndroidManifest.xml:17:1-23:12
+MERGED from [androidx.core:core-ktx:1.13.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\17d7b298bbba031d7c93799799885fe3\transformed\core-ktx-1.13.1\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.runtime:runtime-saveable-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\43a990901e5a7d368c06a07e7444cf52\transformed\runtime-saveable-release\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.compose.runtime:runtime-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\bc321861ac6e8cb7bed142148be80c52\transformed\runtime-release\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.annotation:annotation-experimental:1.4.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\4b6c0d3e2341b9a3ce5bb73ddc64a9b4\transformed\annotation-experimental-1.4.1\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\c7706301989b3ef2fc1b7b49e99c6a41\transformed\versionedparcelable-1.1.1\AndroidManifest.xml:17:1-27:12
+MERGED from [androidx.interpolator:interpolator:1.0.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\86b1a8dbfbe043b41200e51cfe0f725d\transformed\interpolator-1.0.0\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:17:1-55:12
+MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\e30dfbd3d8ee339646f4ed4c75a6c69b\transformed\startup-runtime-1.1.1\AndroidManifest.xml:17:1-33:12
+MERGED from [androidx.tracing:tracing:1.0.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\98c299f85d42a2d52bdaf66292096e42\transformed\tracing-1.0.0\AndroidManifest.xml:17:1-24:12
+MERGED from [androidx.arch.core:core-runtime:2.2.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\4e76b216b3e8407a1fa4c855b6891db5\transformed\core-runtime-2.2.0\AndroidManifest.xml:17:1-22:12
+	package
+		INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml
+	android:versionName
+		INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml
+	xmlns:tools
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:3:5-51
+	android:versionCode
+		INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml
+	xmlns:android
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:2:11-69
+uses-permission#android.permission.INTERNET
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:6:5-67
+	android:name
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:6:22-64
+uses-permission#android.permission.ACCESS_NETWORK_STATE
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:7:5-79
+	android:name
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:7:22-76
+uses-permission#android.permission.ACCESS_WIFI_STATE
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:8:5-76
+	android:name
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:8:22-73
+uses-permission#android.permission.ACCESS_FINE_LOCATION
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:11:5-79
+	android:name
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:11:22-76
+uses-permission#android.permission.ACCESS_COARSE_LOCATION
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:12:5-81
+	android:name
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:12:22-78
+uses-permission#android.permission.ACCESS_BACKGROUND_LOCATION
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:14:5-85
+	android:name
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:14:22-82
+uses-permission#android.permission.FOREGROUND_SERVICE
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:17:5-77
+	android:name
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:17:22-74
+uses-permission#android.permission.FOREGROUND_SERVICE_LOCATION
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:18:5-86
+	android:name
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:18:22-83
+uses-permission#android.permission.POST_NOTIFICATIONS
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:20:5-77
+	android:name
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:20:22-74
+queries
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:23:5-25:15
+package#com.autonavi.minimap
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:24:9-56
+	android:name
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:24:18-53
+application
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:27:5-68:19
+INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:27:5-68:19
+MERGED from [androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:23:5-33:19
+MERGED from [androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:23:5-33:19
+MERGED from [androidx.lifecycle:lifecycle-process:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\82e752d385e3ef04a6944643896d10cc\transformed\lifecycle-process-2.8.6\AndroidManifest.xml:23:5-33:19
+MERGED from [androidx.lifecycle:lifecycle-process:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\82e752d385e3ef04a6944643896d10cc\transformed\lifecycle-process-2.8.6\AndroidManifest.xml:23:5-33:19
+MERGED from [androidx.compose.ui:ui-tooling-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\463ab415684a6e63012533bfbcfb0f94\transformed\ui-tooling-release\AndroidManifest.xml:22:5-26:19
+MERGED from [androidx.compose.ui:ui-tooling-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\463ab415684a6e63012533bfbcfb0f94\transformed\ui-tooling-release\AndroidManifest.xml:22:5-26:19
+MERGED from [androidx.core:core:1.13.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\39c959e831ef0955c53f279c093379dd\transformed\core-1.13.1\AndroidManifest.xml:28:5-89
+MERGED from [androidx.core:core:1.13.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\39c959e831ef0955c53f279c093379dd\transformed\core-1.13.1\AndroidManifest.xml:28:5-89
+MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\c7706301989b3ef2fc1b7b49e99c6a41\transformed\versionedparcelable-1.1.1\AndroidManifest.xml:24:5-25:19
+MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\c7706301989b3ef2fc1b7b49e99c6a41\transformed\versionedparcelable-1.1.1\AndroidManifest.xml:24:5-25:19
+MERGED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:23:5-53:19
+MERGED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:23:5-53:19
+MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\e30dfbd3d8ee339646f4ed4c75a6c69b\transformed\startup-runtime-1.1.1\AndroidManifest.xml:25:5-31:19
+MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\e30dfbd3d8ee339646f4ed4c75a6c69b\transformed\startup-runtime-1.1.1\AndroidManifest.xml:25:5-31:19
+	android:extractNativeLibs
+		INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml
+	android:appComponentFactory
+		ADDED from [androidx.core:core:1.13.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\39c959e831ef0955c53f279c093379dd\transformed\core-1.13.1\AndroidManifest.xml:28:18-86
+	android:supportsRtl
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:31:9-35
+	android:label
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:30:9-41
+	android:icon
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:29:9-43
+	android:allowBackup
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:28:9-35
+	android:theme
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:32:9-48
+meta-data#com.amap.api.v2.apikey
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:35:9-37:58
+	android:value
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:37:13-55
+	android:name
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:36:13-50
+service#com.amap.api.location.APSService
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:40:9-68
+	android:name
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:40:18-65
+service#com.example.myfirstapp.track.TrackRecordingService
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:43:9-46:56
+	android:exported
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:45:13-37
+	android:foregroundServiceType
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:46:13-53
+	android:name
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:44:13-56
+activity#com.example.myfirstapp.MainActivity
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:60:9-67:20
+	android:exported
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:62:13-36
+	android:name
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:61:13-41
+intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:63:13-66:29
+action#android.intent.action.MAIN
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:64:17-69
+	android:name
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:64:25-66
+category#android.intent.category.LAUNCHER
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:65:17-77
+	android:name
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:65:27-74
+meta-data#android.support.FILE_PROVIDER_PATHS
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:54:13-56:54
+	android:resource
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:56:17-51
+	android:name
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:55:17-67
+uses-sdk
+INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml
+INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml
+MERGED from [androidx.navigation:navigation-common:2.8.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\997858211be3bbe24bf42bf2f74d3e96\transformed\navigation-common-2.8.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.navigation:navigation-common:2.8.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\997858211be3bbe24bf42bf2f74d3e96\transformed\navigation-common-2.8.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.navigation:navigation-runtime:2.8.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\80fae5603c09ad23ef1f9c32c789951d\transformed\navigation-runtime-2.8.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.navigation:navigation-runtime:2.8.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\80fae5603c09ad23ef1f9c32c789951d\transformed\navigation-runtime-2.8.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.navigation:navigation-common-ktx:2.8.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\ce10e2c08c88dfc28cafcd201bfb0f07\transformed\navigation-common-ktx-2.8.1\AndroidManifest.xml:5:5-44
+MERGED from [androidx.navigation:navigation-common-ktx:2.8.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\ce10e2c08c88dfc28cafcd201bfb0f07\transformed\navigation-common-ktx-2.8.1\AndroidManifest.xml:5:5-44
+MERGED from [androidx.navigation:navigation-runtime-ktx:2.8.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\b3b048f3211f3317d3567b4ee0b15c39\transformed\navigation-runtime-ktx-2.8.1\AndroidManifest.xml:5:5-44
+MERGED from [androidx.navigation:navigation-runtime-ktx:2.8.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\b3b048f3211f3317d3567b4ee0b15c39\transformed\navigation-runtime-ktx-2.8.1\AndroidManifest.xml:5:5-44
+MERGED from [androidx.navigation:navigation-compose:2.8.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\47c31a99e4949c4a72c0f0796a40f96e\transformed\navigation-compose-2.8.1\AndroidManifest.xml:5:5-44
+MERGED from [androidx.navigation:navigation-compose:2.8.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\47c31a99e4949c4a72c0f0796a40f96e\transformed\navigation-compose-2.8.1\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.material3:material3-android:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\c5aa42310403cfd2baf80e8390c33bda\transformed\material3-release\AndroidManifest.xml:20:5-44
+MERGED from [androidx.compose.material3:material3-android:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\c5aa42310403cfd2baf80e8390c33bda\transformed\material3-release\AndroidManifest.xml:20:5-44
+MERGED from [androidx.savedstate:savedstate-ktx:1.2.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\cc12b54c1ec01b702824decf6132932e\transformed\savedstate-ktx-1.2.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.savedstate:savedstate-ktx:1.2.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\cc12b54c1ec01b702824decf6132932e\transformed\savedstate-ktx-1.2.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.compose.material:material-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\38c66d3d1eb0e08e9efa44d7230bf154\transformed\material-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.material:material-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\38c66d3d1eb0e08e9efa44d7230bf154\transformed\material-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.savedstate:savedstate:1.2.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\607b8606b11a8640e70c0d4c7fead62b\transformed\savedstate-1.2.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.savedstate:savedstate:1.2.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\607b8606b11a8640e70c0d4c7fead62b\transformed\savedstate-1.2.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.compose.animation:animation-core-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\78ee74791c9e850ac8d25564419bcbfe\transformed\animation-core-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.animation:animation-core-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\78ee74791c9e850ac8d25564419bcbfe\transformed\animation-core-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.material:material-ripple-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\e867e4d7af3ea718f442c3a7e8ab4401\transformed\material-ripple-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.material:material-ripple-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\e867e4d7af3ea718f442c3a7e8ab4401\transformed\material-ripple-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.animation:animation-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\22b5ecfb4d843b2a9af3442dcfe411f5\transformed\animation-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.animation:animation-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\22b5ecfb4d843b2a9af3442dcfe411f5\transformed\animation-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.foundation:foundation-layout-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\a863ca7152658eead254b5e86ebde1d4\transformed\foundation-layout-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.foundation:foundation-layout-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\a863ca7152658eead254b5e86ebde1d4\transformed\foundation-layout-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.foundation:foundation-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\018b6fc1b350bb6b6865bbac941fdb6e\transformed\foundation-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.foundation:foundation-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\018b6fc1b350bb6b6865bbac941fdb6e\transformed\foundation-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-tooling-data-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\69df7ec613a36e971491617329d08999\transformed\ui-tooling-data-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-tooling-data-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\69df7ec613a36e971491617329d08999\transformed\ui-tooling-data-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-unit-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fc31083b1ce932d0528751e717f30506\transformed\ui-unit-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-unit-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fc31083b1ce932d0528751e717f30506\transformed\ui-unit-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-geometry-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\616889654c8b56b0c2cc046511876e93\transformed\ui-geometry-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-geometry-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\616889654c8b56b0c2cc046511876e93\transformed\ui-geometry-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-util-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\6e29f785c95fbc94623b5478aed18ce3\transformed\ui-util-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-util-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\6e29f785c95fbc94623b5478aed18ce3\transformed\ui-util-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-tooling-preview-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\7012b7df8a5d651d94b5f6009790b540\transformed\ui-tooling-preview-release\AndroidManifest.xml:20:5-44
+MERGED from [androidx.compose.ui:ui-tooling-preview-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\7012b7df8a5d651d94b5f6009790b540\transformed\ui-tooling-preview-release\AndroidManifest.xml:20:5-44
+MERGED from [androidx.compose.ui:ui-graphics-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\192a021ab421105abc46f514ba957fd4\transformed\ui-graphics-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-graphics-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\192a021ab421105abc46f514ba957fd4\transformed\ui-graphics-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-text-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\b637eb61955f6c3e5f01fbdba07ba681\transformed\ui-text-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-text-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\b637eb61955f6c3e5f01fbdba07ba681\transformed\ui-text-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:21:5-44
+MERGED from [androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:21:5-44
+MERGED from [androidx.lifecycle:lifecycle-process:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\82e752d385e3ef04a6944643896d10cc\transformed\lifecycle-process-2.8.6\AndroidManifest.xml:21:5-44
+MERGED from [androidx.lifecycle:lifecycle-process:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\82e752d385e3ef04a6944643896d10cc\transformed\lifecycle-process-2.8.6\AndroidManifest.xml:21:5-44
+MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\2bcb0bc59bd8ff08d600bbe0cdeeb61b\transformed\lifecycle-livedata-core-2.8.6\AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\2bcb0bc59bd8ff08d600bbe0cdeeb61b\transformed\lifecycle-livedata-core-2.8.6\AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-android:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\da2f190283de21a2ea2ddfde0099f33d\transformed\lifecycle-viewmodel-release\AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-android:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\da2f190283de21a2ea2ddfde0099f33d\transformed\lifecycle-viewmodel-release\AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-runtime-android:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\199711cbf70d970acaa4665cae46c0ff\transformed\lifecycle-runtime-release\AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-runtime-android:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\199711cbf70d970acaa4665cae46c0ff\transformed\lifecycle-runtime-release\AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-savedstate:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\40c1f6e90a4d728e89625f1bbce0f2d0\transformed\lifecycle-viewmodel-savedstate-2.8.6\AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-savedstate:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\40c1f6e90a4d728e89625f1bbce0f2d0\transformed\lifecycle-viewmodel-savedstate-2.8.6\AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\95598a8748ab7b60caca8372bbb35c99\transformed\lifecycle-viewmodel-ktx-2.8.6\AndroidManifest.xml:5:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\95598a8748ab7b60caca8372bbb35c99\transformed\lifecycle-viewmodel-ktx-2.8.6\AndroidManifest.xml:5:5-44
+MERGED from [androidx.lifecycle:lifecycle-runtime-compose-android:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\aaf4ed58853de40aca9cc21aba8de24b\transformed\lifecycle-runtime-compose-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.lifecycle:lifecycle-runtime-compose-android:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\aaf4ed58853de40aca9cc21aba8de24b\transformed\lifecycle-runtime-compose-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.lifecycle:lifecycle-runtime-ktx-android:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\2133e7f8e1f946aff08e69f832408b0c\transformed\lifecycle-runtime-ktx-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.lifecycle:lifecycle-runtime-ktx-android:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\2133e7f8e1f946aff08e69f832408b0c\transformed\lifecycle-runtime-ktx-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-compose-android:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\205c84b25b2b1008b50a01026c8fa601\transformed\lifecycle-viewmodel-compose-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-compose-android:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\205c84b25b2b1008b50a01026c8fa601\transformed\lifecycle-viewmodel-compose-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.material:material-icons-extended-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\01d0fbac514c6a5e2b649cf76d57410a\transformed\material-icons-extended-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.material:material-icons-extended-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\01d0fbac514c6a5e2b649cf76d57410a\transformed\material-icons-extended-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.material:material-icons-core-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\4d19145306a08180dd4c82df4c672ed2\transformed\material-icons-core-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.material:material-icons-core-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\4d19145306a08180dd4c82df4c672ed2\transformed\material-icons-core-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\2d68b35114f440d97864892b94d07a2f\transformed\ui-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\2d68b35114f440d97864892b94d07a2f\transformed\ui-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.ui:ui-tooling-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\463ab415684a6e63012533bfbcfb0f94\transformed\ui-tooling-release\AndroidManifest.xml:20:5-44
+MERGED from [androidx.compose.ui:ui-tooling-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\463ab415684a6e63012533bfbcfb0f94\transformed\ui-tooling-release\AndroidManifest.xml:20:5-44
+MERGED from [androidx.activity:activity-compose:1.9.2] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\0c69d25d23ab19362b3e1668ea951c85\transformed\activity-compose-1.9.2\AndroidManifest.xml:5:5-44
+MERGED from [androidx.activity:activity-compose:1.9.2] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\0c69d25d23ab19362b3e1668ea951c85\transformed\activity-compose-1.9.2\AndroidManifest.xml:5:5-44
+MERGED from [androidx.activity:activity-ktx:1.9.2] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\4b1be4391640fed3f15e3cd04b37771e\transformed\activity-ktx-1.9.2\AndroidManifest.xml:5:5-44
+MERGED from [androidx.activity:activity-ktx:1.9.2] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\4b1be4391640fed3f15e3cd04b37771e\transformed\activity-ktx-1.9.2\AndroidManifest.xml:5:5-44
+MERGED from [androidx.activity:activity:1.9.2] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\7e0cb806481e8cc822096f4f8f1453b4\transformed\activity-1.9.2\AndroidManifest.xml:20:5-44
+MERGED from [androidx.activity:activity:1.9.2] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\7e0cb806481e8cc822096f4f8f1453b4\transformed\activity-1.9.2\AndroidManifest.xml:20:5-44
+MERGED from [androidx.autofill:autofill:1.0.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\e11395d4803e914d0c46146340e2f69c\transformed\autofill-1.0.0\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.autofill:autofill:1.0.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\e11395d4803e914d0c46146340e2f69c\transformed\autofill-1.0.0\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.graphics:graphics-path:1.0.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\2c4f2d08b6e10cd10ee6932bde4810d2\transformed\graphics-path-1.0.1\AndroidManifest.xml:5:5-44
+MERGED from [androidx.graphics:graphics-path:1.0.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\2c4f2d08b6e10cd10ee6932bde4810d2\transformed\graphics-path-1.0.1\AndroidManifest.xml:5:5-44
+MERGED from [androidx.core:core:1.13.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\39c959e831ef0955c53f279c093379dd\transformed\core-1.13.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.core:core:1.13.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\39c959e831ef0955c53f279c093379dd\transformed\core-1.13.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.customview:customview-poolingcontainer:1.0.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\5c15e5bab3c7faa61f8082c808329c70\transformed\customview-poolingcontainer-1.0.0\AndroidManifest.xml:20:5-21:38
+MERGED from [androidx.customview:customview-poolingcontainer:1.0.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\5c15e5bab3c7faa61f8082c808329c70\transformed\customview-poolingcontainer-1.0.0\AndroidManifest.xml:20:5-21:38
+MERGED from [androidx.core:core-ktx:1.13.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\17d7b298bbba031d7c93799799885fe3\transformed\core-ktx-1.13.1\AndroidManifest.xml:5:5-44
+MERGED from [androidx.core:core-ktx:1.13.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\17d7b298bbba031d7c93799799885fe3\transformed\core-ktx-1.13.1\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.runtime:runtime-saveable-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\43a990901e5a7d368c06a07e7444cf52\transformed\runtime-saveable-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.runtime:runtime-saveable-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\43a990901e5a7d368c06a07e7444cf52\transformed\runtime-saveable-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.runtime:runtime-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\bc321861ac6e8cb7bed142148be80c52\transformed\runtime-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.compose.runtime:runtime-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\bc321861ac6e8cb7bed142148be80c52\transformed\runtime-release\AndroidManifest.xml:5:5-44
+MERGED from [androidx.annotation:annotation-experimental:1.4.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\4b6c0d3e2341b9a3ce5bb73ddc64a9b4\transformed\annotation-experimental-1.4.1\AndroidManifest.xml:5:5-44
+MERGED from [androidx.annotation:annotation-experimental:1.4.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\4b6c0d3e2341b9a3ce5bb73ddc64a9b4\transformed\annotation-experimental-1.4.1\AndroidManifest.xml:5:5-44
+MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\c7706301989b3ef2fc1b7b49e99c6a41\transformed\versionedparcelable-1.1.1\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\c7706301989b3ef2fc1b7b49e99c6a41\transformed\versionedparcelable-1.1.1\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.interpolator:interpolator:1.0.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\86b1a8dbfbe043b41200e51cfe0f725d\transformed\interpolator-1.0.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.interpolator:interpolator:1.0.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\86b1a8dbfbe043b41200e51cfe0f725d\transformed\interpolator-1.0.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:21:5-44
+MERGED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:21:5-44
+MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\e30dfbd3d8ee339646f4ed4c75a6c69b\transformed\startup-runtime-1.1.1\AndroidManifest.xml:21:5-23:41
+MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\e30dfbd3d8ee339646f4ed4c75a6c69b\transformed\startup-runtime-1.1.1\AndroidManifest.xml:21:5-23:41
+MERGED from [androidx.tracing:tracing:1.0.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\98c299f85d42a2d52bdaf66292096e42\transformed\tracing-1.0.0\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.tracing:tracing:1.0.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\98c299f85d42a2d52bdaf66292096e42\transformed\tracing-1.0.0\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.arch.core:core-runtime:2.2.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\4e76b216b3e8407a1fa4c855b6891db5\transformed\core-runtime-2.2.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.arch.core:core-runtime:2.2.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\4e76b216b3e8407a1fa4c855b6891db5\transformed\core-runtime-2.2.0\AndroidManifest.xml:20:5-44
+	android:targetSdkVersion
+		INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml
+	android:minSdkVersion
+		INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml
+provider#androidx.startup.InitializationProvider
+ADDED from [androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:24:9-32:20
+MERGED from [androidx.lifecycle:lifecycle-process:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\82e752d385e3ef04a6944643896d10cc\transformed\lifecycle-process-2.8.6\AndroidManifest.xml:24:9-32:20
+MERGED from [androidx.lifecycle:lifecycle-process:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\82e752d385e3ef04a6944643896d10cc\transformed\lifecycle-process-2.8.6\AndroidManifest.xml:24:9-32:20
+MERGED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:24:9-32:20
+MERGED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:24:9-32:20
+MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\e30dfbd3d8ee339646f4ed4c75a6c69b\transformed\startup-runtime-1.1.1\AndroidManifest.xml:26:9-30:34
+MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\e30dfbd3d8ee339646f4ed4c75a6c69b\transformed\startup-runtime-1.1.1\AndroidManifest.xml:26:9-30:34
+	tools:node
+		ADDED from [androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:28:13-31
+	android:authorities
+		ADDED from [androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:26:13-68
+	android:exported
+		ADDED from [androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:27:13-37
+	android:name
+		ADDED from [androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:25:13-67
+meta-data#androidx.emoji2.text.EmojiCompatInitializer
+ADDED from [androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:29:13-31:52
+	android:value
+		ADDED from [androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:31:17-49
+	android:name
+		ADDED from [androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:30:17-75
+meta-data#androidx.lifecycle.ProcessLifecycleInitializer
+ADDED from [androidx.lifecycle:lifecycle-process:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\82e752d385e3ef04a6944643896d10cc\transformed\lifecycle-process-2.8.6\AndroidManifest.xml:29:13-31:52
+	android:value
+		ADDED from [androidx.lifecycle:lifecycle-process:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\82e752d385e3ef04a6944643896d10cc\transformed\lifecycle-process-2.8.6\AndroidManifest.xml:31:17-49
+	android:name
+		ADDED from [androidx.lifecycle:lifecycle-process:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\82e752d385e3ef04a6944643896d10cc\transformed\lifecycle-process-2.8.6\AndroidManifest.xml:30:17-78
+activity#androidx.compose.ui.tooling.PreviewActivity
+ADDED from [androidx.compose.ui:ui-tooling-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\463ab415684a6e63012533bfbcfb0f94\transformed\ui-tooling-release\AndroidManifest.xml:23:9-25:39
+	android:exported
+		ADDED from [androidx.compose.ui:ui-tooling-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\463ab415684a6e63012533bfbcfb0f94\transformed\ui-tooling-release\AndroidManifest.xml:25:13-36
+	android:name
+		ADDED from [androidx.compose.ui:ui-tooling-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\463ab415684a6e63012533bfbcfb0f94\transformed\ui-tooling-release\AndroidManifest.xml:24:13-71
+permission#${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+ADDED from [androidx.core:core:1.13.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\39c959e831ef0955c53f279c093379dd\transformed\core-1.13.1\AndroidManifest.xml:22:5-24:47
+	android:protectionLevel
+		ADDED from [androidx.core:core:1.13.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\39c959e831ef0955c53f279c093379dd\transformed\core-1.13.1\AndroidManifest.xml:24:9-44
+	android:name
+		ADDED from [androidx.core:core:1.13.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\39c959e831ef0955c53f279c093379dd\transformed\core-1.13.1\AndroidManifest.xml:23:9-81
+permission#com.example.myfirstapp.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+ADDED from [androidx.core:core:1.13.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\39c959e831ef0955c53f279c093379dd\transformed\core-1.13.1\AndroidManifest.xml:22:5-24:47
+	android:protectionLevel
+		ADDED from [androidx.core:core:1.13.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\39c959e831ef0955c53f279c093379dd\transformed\core-1.13.1\AndroidManifest.xml:24:9-44
+	android:name
+		ADDED from [androidx.core:core:1.13.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\39c959e831ef0955c53f279c093379dd\transformed\core-1.13.1\AndroidManifest.xml:23:9-81
+uses-permission#${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+ADDED from [androidx.core:core:1.13.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\39c959e831ef0955c53f279c093379dd\transformed\core-1.13.1\AndroidManifest.xml:26:5-97
+	android:name
+		ADDED from [androidx.core:core:1.13.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\39c959e831ef0955c53f279c093379dd\transformed\core-1.13.1\AndroidManifest.xml:26:22-94
+uses-permission#com.example.myfirstapp.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+ADDED from [androidx.core:core:1.13.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\39c959e831ef0955c53f279c093379dd\transformed\core-1.13.1\AndroidManifest.xml:26:5-97
+	android:name
+		ADDED from [androidx.core:core:1.13.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\39c959e831ef0955c53f279c093379dd\transformed\core-1.13.1\AndroidManifest.xml:26:22-94
+meta-data#androidx.profileinstaller.ProfileInstallerInitializer
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:29:13-31:52
+	android:value
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:31:17-49
+	android:name
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:30:17-85
+receiver#androidx.profileinstaller.ProfileInstallReceiver
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:34:9-52:20
+	android:enabled
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:37:13-35
+	android:exported
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:38:13-36
+	android:permission
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:39:13-57
+	android:directBootAware
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:36:13-44
+	android:name
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:35:13-76
+intent-filter#action:name:androidx.profileinstaller.action.INSTALL_PROFILE
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:40:13-42:29
+action#androidx.profileinstaller.action.INSTALL_PROFILE
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:41:17-91
+	android:name
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:41:25-88
+intent-filter#action:name:androidx.profileinstaller.action.SKIP_FILE
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:43:13-45:29
+action#androidx.profileinstaller.action.SKIP_FILE
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:44:17-85
+	android:name
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:44:25-82
+intent-filter#action:name:androidx.profileinstaller.action.SAVE_PROFILE
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:46:13-48:29
+action#androidx.profileinstaller.action.SAVE_PROFILE
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:47:17-88
+	android:name
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:47:25-85
+intent-filter#action:name:androidx.profileinstaller.action.BENCHMARK_OPERATION
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:49:13-51:29
+action#androidx.profileinstaller.action.BENCHMARK_OPERATION
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:50:17-95
+	android:name
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:50:25-92

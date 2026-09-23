@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 启动图标前景：白色地图定位钉（位于 108dp 安全区中心） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,30c-9.9,0 -18,8.1 -18,18c0,13.6 14.9,30.3 15.8,31.3c1.2,1.3 3.2,1.3 4.4,0C57.1,78.3 72,61.6 72,48C72,38.1 63.9,30 54,30zM54,55c-3.9,0 -7,-3.1 -7,-7s3.1,-7 7,-7s7,3.1 7,7S57.9,55 54,55z" />
+</vector>

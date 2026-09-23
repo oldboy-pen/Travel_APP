@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider 分享路径：GPX 导出目录 -->
+<paths>
+    <cache-path name="gpx" path="gpx/" />
+</paths>
