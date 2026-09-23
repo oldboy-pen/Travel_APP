@@ -1,4 +1,15 @@
-# MyFirstApp — Android 户外轨迹示例项目
+## 当前进展：
+
+	完成APP初步界面
+
+## 下步计划：
+
+* 完成对界面优化和功能实现效果
+* 完成对轨迹的记录和保存功能
+
+
+
+# TravelApp — Android 户外轨迹示例项目
 
 基于 **Kotlin + Jetpack Compose + MVVM**，一个类似「两步路」的户外运动 App，包含：
 
@@ -50,16 +61,16 @@ MyFirstApp/
 
 ## 核心知识点
 
-| 文件 | 学到什么 |
-|------|----------|
-| `TrackRecorder.kt` | 单例状态容器、StateFlow、GPS 降噪（漂移/跳点过滤）、累计爬升算法 |
-| `TrackRecordingService.kt` | 前台服务（foregroundServiceType=location）、通知渠道、息屏保活 |
-| `TrackRepository.kt` | 文件持久化、GPX 标准格式生成与 XmlPullParser 解析 |
-| `RecordScreen.kt` | 复杂状态驱动 UI、运行时权限、MapView 生命周期绑定 |
-| `TrackDetailScreen.kt` | FileProvider 分享文件、地图回放轨迹、AlertDialog 确认交互 |
-| `MapScreen.kt` | AndroidView 嵌入传统 View、地图覆盖物 |
-| `AppNavHost.kt` | Navigation Compose 多 Tab + 全屏详情页 |
-| `MainActivity.kt` | 隐私弹窗、高德SDK合规初始化 |
+| 文件                         | 学到什么                                                         |
+| ---------------------------- | ---------------------------------------------------------------- |
+| `TrackRecorder.kt`         | 单例状态容器、StateFlow、GPS 降噪（漂移/跳点过滤）、累计爬升算法 |
+| `TrackRecordingService.kt` | 前台服务（foregroundServiceType=location）、通知渠道、息屏保活   |
+| `TrackRepository.kt`       | 文件持久化、GPX 标准格式生成与 XmlPullParser 解析                |
+| `RecordScreen.kt`          | 复杂状态驱动 UI、运行时权限、MapView 生命周期绑定                |
+| `TrackDetailScreen.kt`     | FileProvider 分享文件、地图回放轨迹、AlertDialog 确认交互        |
+| `MapScreen.kt`             | AndroidView 嵌入传统 View、地图覆盖物                            |
+| `AppNavHost.kt`            | Navigation Compose 多 Tab + 全屏详情页                           |
+| `MainActivity.kt`          | 隐私弹窗、高德SDK合规初始化                                      |
 
 ## 运行前必读
 
@@ -76,24 +87,24 @@ keytool -list -v -keystore %USERPROFILE%\.android\debug.keystore -alias androidd
 
 ### 轨迹记录功能说明
 
-| 功能 | 说明 |
-|------|------|
-| 开始记录 | 「运动」Tab → 开始记录（自动申请定位+通知权限，启动前台服务） |
+| 功能     | 说明                                                                                      |
+| -------- | ----------------------------------------------------------------------------------------- |
+| 开始记录 | 「运动」Tab → 开始记录（自动申请定位+通知权限，启动前台服务）                            |
 | 息屏记录 | 前台服务保活。若厂商系统仍杀后台，请把 App 加入电池白名单，定位权限选"**始终允许**" |
-| 途经点 | 记录中点「打点」，轨迹库详情页可查看 |
-| 结束 | 自动保存 → 跳转轨迹详情（回放） |
-| GPX 导出 | 详情页右上角分享按钮，可导入两步路/奥维/Garmin 等 |
-| GPX 导入 | 轨迹库页「导入 GPX」选择 .gpx 文件 |
+| 途经点   | 记录中点「打点」，轨迹库详情页可查看                                                      |
+| 结束     | 自动保存 → 跳转轨迹详情（回放）                                                          |
+| GPX 导出 | 详情页右上角分享按钮，可导入两步路/奥维/Garmin 等                                         |
+| GPX 导入 | 轨迹库页「导入 GPX」选择 .gpx 文件                                                        |
 
 ### 常见问题
 
-| 现象 | 原因/解决 |
-|------|-----------|
-| 地图空白 | Key 无效：检查包名、SHA1；替换后卸载重装 |
-| 息屏后轨迹中断 | 定位权限改"始终允许"；App 加入电池优化白名单 |
-| 爬升数据偏大 | GPS 海拔噪声，已做 1 米阈值过滤，长时间记录仍需算法优化 |
-| 模拟器无定位 | Extended Controls → Location 手动设置坐标 |
-| 通知不显示 | Android 13+ 需同意通知权限 |
+| 现象           | 原因/解决                                               |
+| -------------- | ------------------------------------------------------- |
+| 地图空白       | Key 无效：检查包名、SHA1；替换后卸载重装                |
+| 息屏后轨迹中断 | 定位权限改"始终允许"；App 加入电池优化白名单            |
+| 爬升数据偏大   | GPS 海拔噪声，已做 1 米阈值过滤，长时间记录仍需算法优化 |
+| 模拟器无定位   | Extended Controls → Location 手动设置坐标              |
+| 通知不显示     | Android 13+ 需同意通知权限                              |
 
 ## 运行方式
 
@@ -108,5 +119,3 @@ keytool -list -v -keystore %USERPROFILE%\.android\debug.keystore -alias androidd
 3. **离线地图**：高德离线地图包下载，无网络户外可用
 4. **路书功能**：轨迹另存为"线路"，可导航跟随已有线路（两步路"线路导航"）
 5. **运动类型**：徒步/骑行/跑步分类记录与统计图表
-
-
