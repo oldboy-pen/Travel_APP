@@ -3,9 +3,11 @@ package com.example.myfirstapp.ui.screens
 import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
-import android.media.MediaPlayer
 import android.net.Uri
 import android.widget.Toast
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -22,6 +24,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -255,7 +258,7 @@ private fun WaypointDetailCard(w: com.example.myfirstapp.track.Waypoint, context
                         val bitmap = stream?.use { BitmapFactory.decodeStream(it) }
                         if (bitmap != null) {
                             Image(
-                                bitmap = androidx.compose.ui.graphics.asImageBitmap(bitmap),
+                                bitmap = bitmap.asImageBitmap(),
                                 contentDescription = w.name,
                                 modifier = Modifier
                                     .fillMaxWidth()
