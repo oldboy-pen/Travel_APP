@@ -41,8 +41,13 @@ class TrackRepository private constructor(context: Context) {
             }))
             put("waypoints", JSONArray(track.waypoints.map { w ->
                 JSONObject().apply {
-                    put("name", w.name); put("lat", w.latitude)
-                    put("lng", w.longitude); put("t", w.time)
+                    put("name", w.name)
+                    put("lat", w.latitude)
+                    put("lng", w.longitude)
+                    put("t", w.time)
+                    put("type", w.type.name)
+                    put("text", w.text ?: "")
+                    put("mediaUri", w.mediaUri ?: "")
                 }
             }))
         }
@@ -75,7 +80,19 @@ class TrackRepository private constructor(context: Context) {
                 val arr = json.getJSONArray("waypoints")
                 for (i in 0 until arr.length()) {
                     val o = arr.getJSONObject(i)
-                    add(Waypoint(o.getString("name"), o.getDouble("lat"), o.getDouble("lng"), o.getLong("t")))
+                    val type = runCatching { WaypointType.valueOf(o.optString("type", WaypointType.TEXT.name)) }
+                        .getOrDefault(WaypointType.TEXT)
+                    add(
+                        Waypoint(
+                            name = o.getString("name"),
+                            latitude = o.getDouble("lat"),
+                            longitude = o.getDouble("lng"),
+                            time = o.getLong("t"),
+                            type = type,
+                            text = o.optString("text", "").takeIf { it.isNotEmpty() },
+                            mediaUri = o.optString("mediaUri", "").takeIf { it.isNotEmpty() }
+                        )
+                    )
                 }
             },
             distanceMeters = json.getDouble("distance"),
@@ -139,10 +156,11 @@ class TrackRepository private constructor(context: Context) {
                     )
                     "wpt" -> wpts.add(
                         Waypoint(
-                            "途经点",
-                            parser.getAttributeValue(null, "lat").toDouble(),
-                            parser.getAttributeValue(null, "lon").toDouble(),
-                            0L
+                            name = "途经点",
+                            latitude = parser.getAttributeValue(null, "lat").toDouble(),
+                            longitude = parser.getAttributeValue(null, "lon").toDouble(),
+                            time = 0L,
+                            type = WaypointType.TEXT
                         )
                     )
                     "name" -> if (points.isEmpty() && wpts.isEmpty()) name = parser.nextText()

@@ -155,12 +155,37 @@ object TrackRecorder {
     }
 
     /** 记录中打一个途经点 */
-    fun addWaypoint(name: String) {
+    fun addWaypoint(
+        type: WaypointType = WaypointType.TEXT,
+        name: String = "",
+        text: String? = null,
+        mediaUri: String? = null
+    ) {
         val d = _data.value
         val lat = d.lastLatitude ?: return
         val lng = d.lastLongitude ?: return
+        val markerName = when (type) {
+            WaypointType.TEXT -> name.ifBlank { "文字标记 ${d.waypoints.size + 1}" }
+            WaypointType.PHOTO -> name.ifBlank { "照片标记 ${d.waypoints.size + 1}" }
+            WaypointType.VIDEO -> name.ifBlank { "视频标记 ${d.waypoints.size + 1}" }
+            WaypointType.VOICE -> name.ifBlank { "语音标记 ${d.waypoints.size + 1}" }
+        }
+        val markerText = when (type) {
+            WaypointType.TEXT -> text ?: name
+            WaypointType.PHOTO -> text ?: "图片标记"
+            WaypointType.VIDEO -> text ?: "视频标记"
+            WaypointType.VOICE -> text ?: "语音标记"
+        }
         _data.value = d.copy(
-            waypoints = d.waypoints + Waypoint(name, lat, lng, System.currentTimeMillis())
+            waypoints = d.waypoints + Waypoint(
+                name = markerName,
+                latitude = lat,
+                longitude = lng,
+                time = System.currentTimeMillis(),
+                type = type,
+                text = markerText,
+                mediaUri = if (type == WaypointType.TEXT) null else (mediaUri ?: "")
+            )
         )
     }
 

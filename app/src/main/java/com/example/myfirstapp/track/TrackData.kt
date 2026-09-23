@@ -13,12 +13,23 @@ data class TrackPoint(
     val speed: Float         // 米/秒
 )
 
+/** 途经点类型：文本、图片、视频、语音 */
+enum class WaypointType {
+    TEXT,
+    PHOTO,
+    VIDEO,
+    VOICE
+}
+
 /** 途经点：用户记录过程中手动打点标记（水源、营地、岔路口…） */
 data class Waypoint(
     val name: String,
     val latitude: Double,
     val longitude: Double,
-    val time: Long
+    val time: Long,
+    val type: WaypointType = WaypointType.TEXT,
+    val text: String? = null,
+    val mediaUri: String? = null
 )
 
 /** 一条完整轨迹 */

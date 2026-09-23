@@ -8,11 +8,17 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -48,6 +54,8 @@ import com.example.myfirstapp.track.TrackRepository
 fun RecordScreen(onTrackSaved: (String) -> Unit) {
     val context = LocalContext.current
     val data by TrackRecorder.data.collectAsStateWithLifecycle()
+    var noteText by remember { mutableStateOf("") }
+    var showWaypointSettings by remember { mutableStateOf(false) }
 
     // ---- 权限：定位（Android 6+）+ 通知（Android 13+，前台服务需要） ----
     var permissionsGranted by remember {
@@ -145,26 +153,84 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
                             Text("开始记录", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         }
 
-                        RecorderState.RECORDING -> Row {
-                            OutlinedButton(
-                                onClick = { TrackRecorder.addWaypoint("途经点 ${data.waypoints.size + 1}") },
-                                modifier = Modifier.weight(1f)
+                        RecorderState.RECORDING -> Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Icon(Icons.Default.Flag, null, Modifier.size(18.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("打点")
+                                RecordQuickActionButton(
+                                    label = "文字",
+                                    icon = Icons.Default.TextFields,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    TrackRecorder.addWaypoint(
+                                        type = com.example.myfirstapp.track.WaypointType.TEXT,
+                                        text = noteText.ifBlank { "文字标记 ${data.waypoints.size + 1}" }
+                                    )
+                                    noteText = ""
+                                }
+                                RecordQuickActionButton(
+                                    label = "拍摄",
+                                    icon = Icons.Default.CameraAlt,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    TrackRecorder.addWaypoint(
+                                        type = com.example.myfirstapp.track.WaypointType.PHOTO,
+                                        text = "图片标记 ${data.waypoints.size + 1}",
+                                        mediaUri = "photo://capture"
+                                    )
+                                }
+                                RecordQuickActionButton(
+                                    label = "语音",
+                                    icon = Icons.Default.Mic,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    TrackRecorder.addWaypoint(
+                                        type = com.example.myfirstapp.track.WaypointType.VOICE,
+                                        text = "语音标记 ${data.waypoints.size + 1}",
+                                        mediaUri = "voice://record"
+                                    )
+                                }
+                                RecordQuickActionButton(
+                                    label = "设置",
+                                    icon = Icons.Default.Settings,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    showWaypointSettings = true
+                                }
                             }
-                            Spacer(Modifier.width(12.dp))
-                            FilledTonalButton(
-                                onClick = { TrackRecorder.pause() },
-                                modifier = Modifier.weight(1f)
-                            ) { Icon(Icons.Default.Pause, null); Text("  暂停") }
-                            Spacer(Modifier.width(12.dp))
-                            Button(
-                                onClick = { finishRecording(context, onTrackSaved) },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                                modifier = Modifier.weight(1f)
-                            ) { Icon(Icons.Default.Stop, null); Text("  结束") }
+
+                            Spacer(Modifier.height(12.dp))
+
+                            if (showWaypointSettings) {
+                                OutlinedTextField(
+                                    value = noteText,
+                                    onValueChange = { noteText = it },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    placeholder = { Text("为当前打点添加说明…") },
+                                    minLines = 2,
+                                    maxLines = 3,
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                            }
+
+                            Spacer(Modifier.height(12.dp))
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                FilledTonalButton(
+                                    onClick = { TrackRecorder.pause() },
+                                    modifier = Modifier.weight(1f)
+                                ) { Icon(Icons.Default.Pause, null); Text("  暂停") }
+                                Button(
+                                    onClick = { finishRecording(context, onTrackSaved) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                    modifier = Modifier.weight(1f)
+                                ) { Icon(Icons.Default.Stop, null); Text("  结束") }
+                            }
                         }
 
                         RecorderState.PAUSED -> Row {
@@ -263,5 +329,23 @@ private fun StatCell(value: String, label: String) {
         Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Text(label, style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun RecordQuickActionButton(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Icon(icon, contentDescription = label, Modifier.size(18.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(label)
     }
 }
