@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
@@ -58,18 +59,40 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
     var noteText by remember { mutableStateOf("") }
     var showWaypointSettings by remember { mutableStateOf(false) }
     var pendingType by remember { mutableStateOf<com.example.myfirstapp.track.WaypointType?>(null) }
+    // 拍照 / 相册选择弹窗 + 相机输出 Uri
+    var showPhotoSourceDialog by remember { mutableStateOf(false) }
+    var cameraOutputUri by remember { mutableStateOf<Uri?>(null) }
+
+    /** 统一的媒体标记入库逻辑（相册、拍照共用） */
+    fun addMediaWaypoint(uri: Uri) {
+        val type = pendingType ?: com.example.myfirstapp.track.WaypointType.PHOTO
+        TrackRecorder.addWaypoint(
+            type = type,
+            text = noteText.ifBlank { "${type.name.lowercase()} 标记 ${data.waypoints.size + 1}" },
+            mediaUri = uri.toString()
+        )
+        noteText = ""
+        pendingType = null
+    }
 
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) {
-            val type = pendingType ?: com.example.myfirstapp.track.WaypointType.PHOTO
-            TrackRecorder.addWaypoint(
-                type = type,
-                text = noteText.ifBlank { "${type.name.lowercase()} 标记 ${data.waypoints.size + 1}" },
-                mediaUri = uri.toString()
-            )
-            noteText = ""
-            pendingType = null
-        }
+        if (uri != null) addMediaWaypoint(uri)
+    }
+
+    val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        if (success) cameraOutputUri?.let { addMediaWaypoint(it) }
+        cameraOutputUri = null
+    }
+
+    /** 拉起系统相机，照片存到 filesDir/camera/（持久保存） */
+    fun launchCamera() {
+        val dir = java.io.File(context.filesDir, "camera").apply { mkdirs() }
+        val file = java.io.File(dir, "IMG_${System.currentTimeMillis()}.jpg")
+        val uri = androidx.core.content.FileProvider.getUriForFile(
+            context, "${context.packageName}.fileprovider", file
+        )
+        cameraOutputUri = uri
+        takePicture.launch(uri)
     }
 
     // ---- 权限：定位（Android 6+）+ 通知（Android 13+，前台服务需要） ----
@@ -136,13 +159,16 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
             ) {
                 Text(
                     when {
+                        data.state == RecorderState.RECORDING && data.locationError != null ->
+                            data.locationError.orEmpty()
                         data.state == RecorderState.RECORDING && data.fixCount < 5 -> "GPS 信号弱，请在开阔处等待…"
                         data.state == RecorderState.RECORDING -> "正在记录 · 当前 %.1f km/h".format(data.currentSpeed * 3.6)
                         data.state == RecorderState.PAUSED -> "已暂停"
                         else -> "准备就绪"
                     },
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (data.fixCount < 5 && data.state == RecorderState.RECORDING)
+                    color = if (data.state == RecorderState.RECORDING &&
+                        (data.locationError != null || data.fixCount < 5))
                         MaterialTheme.colorScheme.error
                     else MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -195,7 +221,7 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     pendingType = com.example.myfirstapp.track.WaypointType.PHOTO
-                                    photoPicker.launch("image/*")
+                                    showPhotoSourceDialog = true
                                 }
                                 RecordQuickActionButton(
                                     label = "语音",
@@ -283,6 +309,43 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
                     }
                 }
             }
+        }
+        // ---- 照片来源选择：拍照 / 相册 ----
+        if (showPhotoSourceDialog) {
+            AlertDialog(
+                onDismissRequest = { showPhotoSourceDialog = false },
+                title = { Text("添加照片标记") },
+                text = {
+                    Column {
+                        TextButton(
+                            onClick = {
+                                showPhotoSourceDialog = false
+                                launchCamera()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.CameraAlt, null, Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("拍照")
+                        }
+                        TextButton(
+                            onClick = {
+                                showPhotoSourceDialog = false
+                                photoPicker.launch("image/*")
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.PhotoLibrary, null, Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("从相册选择")
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { showPhotoSourceDialog = false }) { Text("取消") }
+                }
+            )
         }
     }
 }

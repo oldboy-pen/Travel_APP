@@ -34,7 +34,7 @@
         <!-- ★ 高德开放平台 Key：替换成你自己的！ -->
         <meta-data
             android:name="com.amap.api.v2.apikey"
-            android:value="REPLACE_WITH_YOUR_AMAP_KEY" />
+            android:value="" />
 
         <!-- 高德定位 SDK 的后台服务 -->
         <service android:name="com.amap.api.location.APSService" />

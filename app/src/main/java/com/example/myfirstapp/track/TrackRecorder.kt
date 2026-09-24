@@ -63,7 +63,14 @@ object TrackRecorder {
                     isMockEnable = false
                 })
                 setLocationListener { loc ->
-                    if (loc.errorCode != 0 || _data.value.state != RecorderState.RECORDING) return@setLocationListener
+                    if (loc.errorCode != 0) {
+                        // 把 SDK 的失败原因透传给 UI，避免"无声失败"难排查
+                        _data.value = _data.value.copy(
+                            locationError = "定位失败(code=${loc.errorCode})：${loc.errorInfo}"
+                        )
+                        return@setLocationListener
+                    }
+                    if (_data.value.state != RecorderState.RECORDING) return@setLocationListener
                     onNewFix(loc.latitude, loc.longitude, loc.altitude, loc.speed, loc.time)
                 }
             }
@@ -103,7 +110,8 @@ object TrackRecorder {
             currentSpeed = speed,
             lastLatitude = lat,
             lastLongitude = lng,
-            fixCount = current.fixCount + 1
+            fixCount = current.fixCount + 1,
+            locationError = null   // 收到有效定位，清除错误提示
         )
     }
 

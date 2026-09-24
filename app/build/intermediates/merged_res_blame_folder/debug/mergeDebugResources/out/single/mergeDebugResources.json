@@ -1,38 +1,42 @@
 [
     {
-        "merged": "com.example.myfirstapp-debug-52:/mipmap-mdpi_ic_launcher.png.flat",
-        "source": "com.example.myfirstapp-main-54:/mipmap-mdpi/ic_launcher.png"
+        "merged": "C:\\Users\\oldboy-pen\\.gradle\\daemon\\8.9\\com.example.myfirstapp-debug-52:\\drawable_ic_launcher_foreground.xml.flat",
+        "source": "C:\\Users\\oldboy-pen\\.gradle\\daemon\\8.9\\com.example.myfirstapp-main-54:\\drawable\\ic_launcher_foreground.xml"
     },
     {
-        "merged": "com.example.myfirstapp-debug-52:/mipmap-hdpi_ic_launcher.png.flat",
-        "source": "com.example.myfirstapp-main-54:/mipmap-hdpi/ic_launcher.png"
+        "merged": "C:\\Users\\oldboy-pen\\.gradle\\daemon\\8.9\\com.example.myfirstapp-debug-52:\\mipmap-xxhdpi_ic_launcher.png.flat",
+        "source": "C:\\Users\\oldboy-pen\\.gradle\\daemon\\8.9\\com.example.myfirstapp-main-54:\\mipmap-xxhdpi\\ic_launcher.png"
     },
     {
-        "merged": "com.example.myfirstapp-debug-52:/mipmap-xxhdpi_ic_launcher.png.flat",
-        "source": "com.example.myfirstapp-main-54:/mipmap-xxhdpi/ic_launcher.png"
+        "merged": "C:\\Users\\oldboy-pen\\.gradle\\daemon\\8.9\\com.example.myfirstapp-debug-52:\\mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "C:\\Users\\oldboy-pen\\.gradle\\daemon\\8.9\\com.example.myfirstapp-main-54:\\mipmap-anydpi-v26\\ic_launcher.xml"
+    },
+    {
+        "merged": "C:\\Users\\oldboy-pen\\.gradle\\daemon\\8.9\\com.example.myfirstapp-debug-52:\\xml_file_paths.xml.flat",
+        "source": "C:\\Users\\oldboy-pen\\.gradle\\daemon\\8.9\\com.example.myfirstapp-main-54:\\xml\\file_paths.xml"
     },
     {
         "merged": "com.example.myfirstapp-debug-52:/xml_file_paths.xml.flat",
         "source": "com.example.myfirstapp-main-54:/xml/file_paths.xml"
     },
     {
-        "merged": "com.example.myfirstapp-debug-52:/mipmap-xxxhdpi_ic_launcher.png.flat",
-        "source": "com.example.myfirstapp-main-54:/mipmap-xxxhdpi/ic_launcher.png"
+        "merged": "C:\\Users\\oldboy-pen\\.gradle\\daemon\\8.9\\com.example.myfirstapp-debug-52:\\mipmap-mdpi_ic_launcher.png.flat",
+        "source": "C:\\Users\\oldboy-pen\\.gradle\\daemon\\8.9\\com.example.myfirstapp-main-54:\\mipmap-mdpi\\ic_launcher.png"
     },
     {
-        "merged": "com.example.myfirstapp-debug-52:/mipmap-anydpi-v26_ic_launcher.xml.flat",
-        "source": "com.example.myfirstapp-main-54:/mipmap-anydpi-v26/ic_launcher.xml"
+        "merged": "C:\\Users\\oldboy-pen\\.gradle\\daemon\\8.9\\com.example.myfirstapp-debug-52:\\mipmap-xxxhdpi_ic_launcher.png.flat",
+        "source": "C:\\Users\\oldboy-pen\\.gradle\\daemon\\8.9\\com.example.myfirstapp-main-54:\\mipmap-xxxhdpi\\ic_launcher.png"
     },
     {
-        "merged": "com.example.myfirstapp-debug-52:/drawable_ic_launcher_foreground.xml.flat",
-        "source": "com.example.myfirstapp-main-54:/drawable/ic_launcher_foreground.xml"
+        "merged": "C:\\Users\\oldboy-pen\\.gradle\\daemon\\8.9\\com.example.myfirstapp-debug-52:\\drawable_ic_notification.xml.flat",
+        "source": "C:\\Users\\oldboy-pen\\.gradle\\daemon\\8.9\\com.example.myfirstapp-main-54:\\drawable\\ic_notification.xml"
     },
     {
-        "merged": "com.example.myfirstapp-debug-52:/mipmap-xhdpi_ic_launcher.png.flat",
-        "source": "com.example.myfirstapp-main-54:/mipmap-xhdpi/ic_launcher.png"
+        "merged": "C:\\Users\\oldboy-pen\\.gradle\\daemon\\8.9\\com.example.myfirstapp-debug-52:\\mipmap-hdpi_ic_launcher.png.flat",
+        "source": "C:\\Users\\oldboy-pen\\.gradle\\daemon\\8.9\\com.example.myfirstapp-main-54:\\mipmap-hdpi\\ic_launcher.png"
     },
     {
-        "merged": "com.example.myfirstapp-debug-52:/drawable_ic_notification.xml.flat",
-        "source": "com.example.myfirstapp-main-54:/drawable/ic_notification.xml"
+        "merged": "C:\\Users\\oldboy-pen\\.gradle\\daemon\\8.9\\com.example.myfirstapp-debug-52:\\mipmap-xhdpi_ic_launcher.png.flat",
+        "source": "C:\\Users\\oldboy-pen\\.gradle\\daemon\\8.9\\com.example.myfirstapp-main-54:\\mipmap-xhdpi\\ic_launcher.png"
     }
 ]

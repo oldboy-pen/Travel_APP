@@ -82,11 +82,11 @@
 49
 50        <!-- ★ 高德开放平台 Key：替换成你自己的！ -->
 51        <meta-data
-51-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:35:9-37:58
+51-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:35:9-37:64
 52            android:name="com.amap.api.v2.apikey"
 52-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:36:13-50
-53            android:value="REPLACE_WITH_YOUR_AMAP_KEY" />
-53-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:37:13-55
+53            android:value="8844b9b23ba616c86e95e7d45b1d31a8" />
+53-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:37:13-61
 54
 55        <!-- 高德定位 SDK 的后台服务 -->
 56        <service android:name="com.amap.api.location.APSService" />

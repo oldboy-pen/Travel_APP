@@ -2,4 +2,6 @@
 <!-- FileProvider 分享路径：GPX 导出目录 -->
 <paths>
     <cache-path name="gpx" path="gpx/" />
+    <!-- 相机拍照输出目录（filesDir，持久保存避免被系统清理） -->
+    <files-path name="camera" path="camera/" />
 </paths>

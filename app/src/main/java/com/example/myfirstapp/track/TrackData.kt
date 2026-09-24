@@ -59,7 +59,8 @@ data class RecordingData(
     val currentSpeed: Float = 0f,
     val lastLatitude: Double? = null,
     val lastLongitude: Double? = null,
-    val fixCount: Int = 0          // GPS 有效定位次数（信号质量参考）
+    val fixCount: Int = 0,         // GPS 有效定位次数（信号质量参考）
+    val locationError: String? = null  // 定位失败原因（如 Key 无效），null 表示正常
 )
 
 /** 地理计算工具 */
