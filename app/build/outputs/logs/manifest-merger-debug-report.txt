@@ -1,20 +1,20 @@
 -- Merging decision tree log ---
 provider#androidx.core.content.FileProvider
-INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:49:9-57:20
+INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:51:9-59:20
 	android:grantUriPermissions
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:53:13-47
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:55:13-47
 	android:authorities
 		INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:51:13-64
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:53:13-64
 	android:exported
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:52:13-37
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:54:13-37
 	android:name
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:50:13-62
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:52:13-62
 manifest
-ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:2:1-70:12
-INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:2:1-70:12
-INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:2:1-70:12
-INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:2:1-70:12
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:2:1-72:12
+INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:2:1-72:12
+INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:2:1-72:12
+INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:2:1-72:12
 MERGED from [androidx.navigation:navigation-common:2.8.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\997858211be3bbe24bf42bf2f74d3e96\transformed\navigation-common-2.8.1\AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.navigation:navigation-runtime:2.8.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\80fae5603c09ad23ef1f9c32c789951d\transformed\navigation-runtime-2.8.1\AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.navigation:navigation-common-ktx:2.8.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\ce10e2c08c88dfc28cafcd201bfb0f07\transformed\navigation-common-ktx-2.8.1\AndroidManifest.xml:2:1-7:12
@@ -97,31 +97,35 @@ uses-permission#android.permission.ACCESS_COARSE_LOCATION
 ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:12:5-81
 	android:name
 		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:12:22-78
+uses-permission#android.permission.RECORD_AUDIO
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:14:5-71
+	android:name
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:14:22-68
 uses-permission#android.permission.ACCESS_BACKGROUND_LOCATION
-ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:14:5-85
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:16:5-85
 	android:name
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:14:22-82
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:16:22-82
 uses-permission#android.permission.FOREGROUND_SERVICE
-ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:17:5-77
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:19:5-77
 	android:name
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:17:22-74
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:19:22-74
 uses-permission#android.permission.FOREGROUND_SERVICE_LOCATION
-ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:18:5-86
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:20:5-86
 	android:name
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:18:22-83
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:20:22-83
 uses-permission#android.permission.POST_NOTIFICATIONS
-ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:20:5-77
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:22:5-77
 	android:name
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:20:22-74
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:22:22-74
 queries
-ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:23:5-25:15
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:25:5-27:15
 package#com.autonavi.minimap
-ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:24:9-56
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:26:9-56
 	android:name
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:24:18-53
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:26:18-53
 application
-ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:27:5-68:19
-INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:27:5-68:19
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:29:5-70:19
+INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:29:5-70:19
 MERGED from [androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:23:5-33:19
 MERGED from [androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:23:5-33:19
 MERGED from [androidx.lifecycle:lifecycle-process:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\82e752d385e3ef04a6944643896d10cc\transformed\lifecycle-process-2.8.6\AndroidManifest.xml:23:5-33:19
@@ -141,55 +145,55 @@ MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\oldboy-pen\.gradle
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.13.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\39c959e831ef0955c53f279c093379dd\transformed\core-1.13.1\AndroidManifest.xml:28:18-86
 	android:supportsRtl
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:31:9-35
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:33:9-35
 	android:label
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:30:9-41
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:32:9-41
 	android:icon
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:29:9-43
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:31:9-43
 	android:allowBackup
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:28:9-35
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:30:9-35
 	android:theme
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:32:9-48
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:34:9-48
 meta-data#com.amap.api.v2.apikey
-ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:35:9-37:64
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:37:9-39:64
 	android:value
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:37:13-61
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:39:13-61
 	android:name
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:36:13-50
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:38:13-50
 service#com.amap.api.location.APSService
-ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:40:9-68
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:42:9-68
 	android:name
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:40:18-65
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:42:18-65
 service#com.example.myfirstapp.track.TrackRecordingService
-ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:43:9-46:56
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:45:9-48:56
 	android:exported
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:45:13-37
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:47:13-37
 	android:foregroundServiceType
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:46:13-53
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:48:13-53
 	android:name
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:44:13-56
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:46:13-56
 activity#com.example.myfirstapp.MainActivity
-ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:60:9-67:20
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:62:9-69:20
 	android:exported
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:62:13-36
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:64:13-36
 	android:name
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:61:13-41
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:63:13-41
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:63:13-66:29
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:65:13-68:29
 action#android.intent.action.MAIN
-ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:64:17-69
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:66:17-69
 	android:name
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:64:25-66
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:66:25-66
 category#android.intent.category.LAUNCHER
-ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:65:17-77
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:67:17-77
 	android:name
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:65:27-74
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:67:27-74
 meta-data#android.support.FILE_PROVIDER_PATHS
-ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:54:13-56:54
+ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:56:13-58:54
 	android:resource
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:56:17-51
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:58:17-51
 	android:name
-		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:55:17-67
+		ADDED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:57:17-67
 uses-sdk
 INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml

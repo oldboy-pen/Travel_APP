@@ -141,7 +141,7 @@ fun TrackDetailScreen(trackId: String, onBack: () -> Unit) {
                     fontWeight = FontWeight.Bold
                 )
                 t.waypoints.forEach { w ->
-                    WaypointDetailCard(w = w, context = context)
+                    WaypointDetailCard(w = w, context = context, trackStart = t.points.firstOrNull())
                 }
             } else {
                 Text(
@@ -178,12 +178,33 @@ private fun TrackPlaybackMapView(t: Track) {
     val mapView = remember { MapView(context) }
     val aMap = remember { mapView.map }
 
+    // ---- 图层切换状态 ----
+    var layerMode by remember { mutableStateOf(com.example.myfirstapp.ui.components.MapLayerMode.NORMAL) }
+    val terrainOverlay = remember { mutableStateOf<com.amap.api.maps.model.TileOverlay?>(null) }
+
     DisposableEffect(Unit) {
         mapView.onCreate(null)
         aMap.uiSettings.isZoomControlsEnabled = false
-        onDispose { mapView.onDestroy() }
+        onDispose {
+            terrainOverlay.value?.remove()
+            mapView.onDestroy()
+        }
     }
-    AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
+    Box(modifier = Modifier.fillMaxSize()) {
+        AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
+
+        // 图层切换：地图右上角
+        com.example.myfirstapp.ui.components.MapLayerSwitcher(
+            current = layerMode,
+            onSelect = { mode ->
+                layerMode = mode
+                com.example.myfirstapp.ui.components.applyMapLayer(aMap, mode, terrainOverlay)
+            },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 10.dp, end = 10.dp)
+        )
+    }
 
     LaunchedEffect(t.id) {
         val latLngs = t.points.map { LatLng(it.latitude, it.longitude) }
@@ -215,12 +236,21 @@ private fun DetailStat(value: String, label: String) {
 }
 
 @Composable
-private fun WaypointDetailCard(w: com.example.myfirstapp.track.Waypoint, context: Context) {
+private fun WaypointDetailCard(
+    w: com.example.myfirstapp.track.Waypoint,
+    context: Context,
+    trackStart: com.example.myfirstapp.track.TrackPoint? = null
+) {
     val typeIcon = when (w.type) {
         com.example.myfirstapp.track.WaypointType.TEXT -> Icons.Default.TextFields
         com.example.myfirstapp.track.WaypointType.PHOTO -> Icons.Default.CameraAlt
         com.example.myfirstapp.track.WaypointType.VIDEO -> Icons.Default.Videocam
         com.example.myfirstapp.track.WaypointType.VOICE -> Icons.Default.Mic
+    }
+
+    // 距起点直线距离（无起点则不显示）
+    val distFromStart = trackStart?.let {
+        GeoUtils.distance(it.latitude, it.longitude, w.latitude, w.longitude)
     }
 
     Card(
@@ -237,8 +267,21 @@ private fun WaypointDetailCard(w: com.example.myfirstapp.track.Waypoint, context
             }
 
             Spacer(Modifier.height(8.dp))
-            Text("类型：${w.type.name} · ${SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.CHINA).format(Date(w.time))}")
-            Text("坐标：%.5f, %.5f".format(w.latitude, w.longitude), style = MaterialTheme.typography.bodySmall)
+            // 精简信息：坐标 + 距起点距离（其余类型/时间等不再展示）
+            Row {
+                Text(
+                    "坐标：%.5f, %.5f".format(w.latitude, w.longitude),
+                    style = MaterialTheme.typography.bodySmall
+                )
+                if (distFromStart != null) {
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "距起点 ${GeoUtils.formatDistance(distFromStart)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
 
             if (!w.text.isNullOrBlank()) {
                 Spacer(Modifier.height(8.dp))

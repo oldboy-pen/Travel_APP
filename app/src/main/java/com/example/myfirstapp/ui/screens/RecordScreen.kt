@@ -480,14 +480,45 @@ private fun finishRecording(context: Context, onTrackSaved: (String) -> Unit) {
     }
 }
 
-/** 地图：跟随模式蓝点 + 实时轨迹线 */
+/** 地图：跟随模式蓝点 + 实时轨迹线 + 图层切换 */
 @Composable
 private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
     val context = LocalContext.current
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     val mapView = remember { MapView(context) }
     val aMap = remember { mapView.map }
-    var cameraFollowed by remember { mutableStateOf(false) }
+
+    // ---- 图层切换状态 ----
+    var layerMode by remember { mutableStateOf(com.example.myfirstapp.ui.components.MapLayerMode.NORMAL) }
+    val terrainOverlay = remember { mutableStateOf<com.amap.api.maps.model.TileOverlay?>(null) }
+
+    // ---- 跟随状态：点定位按钮开启，用户手动拖动地图自动退出 ----
+    val followMode = remember { mutableStateOf(false) }
+    // 地图 SDK 最新定位（蓝点位置缓存；aMap.myLocation 实测取不到，用监听器自己存）
+    val blueDotLatLng = remember { mutableStateOf<LatLng?>(null) }
+    // 首次拿到定位 → 自动回中一次
+    val hasAutoCentered = remember { mutableStateOf(false) }
+    val locationStyle = remember {
+        MyLocationStyle().apply {
+            // 纯定位点：只显示蓝点不自动转镜头；跟随模式用 LOCATION_TYPE_LOCATION_ROTATE
+            myLocationType(MyLocationStyle.LOCATION_TYPE_LOCATION_ROTATE_NO_CENTER)
+            interval(2000)
+        }
+    }
+    val followStyle = remember {
+        MyLocationStyle().apply {
+            // 跟随模式：定位 + 旋转
+            myLocationType(MyLocationStyle.LOCATION_TYPE_LOCATION_ROTATE)
+            interval(2000)
+        }
+    }
+    /** 退出跟随模式：恢复纯定位点样式（不自动转镜头） */
+    fun exitFollowMode() {
+        if (followMode.value) {
+            followMode.value = false
+            aMap.myLocationStyle = locationStyle
+        }
+    }
 
     DisposableEffect(Unit) {
         val owner = lifecycleOwner
@@ -503,10 +534,30 @@ private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
         aMap.uiSettings.isZoomControlsEnabled = false
         aMap.uiSettings.isMyLocationButtonEnabled = false // 关掉右下角内置按钮（会被底部面板遮挡），改为自绘 FAB
         aMap.isMyLocationEnabled = true
-        aMap.myLocationStyle = MyLocationStyle().apply {
-            myLocationType(MyLocationStyle.LOCATION_TYPE_LOCATION_ROTATE) // 定位+旋转跟随
-            interval(2000)
+        aMap.myLocationStyle = locationStyle
+
+        // 蓝点位置变化 → 缓存最新位置；首次定位自动回中一次
+        aMap.setOnMyLocationChangeListener { location ->
+            location ?: return@setOnMyLocationChangeListener
+            blueDotLatLng.value = LatLng(location.latitude, location.longitude)
+            if (!hasAutoCentered.value) {
+                hasAutoCentered.value = true
+                aMap.moveCamera(CameraUpdateFactory.newLatLngZoom(blueDotLatLng.value!!, 17f))
+            }
         }
+
+        // 手势直接判定：用户拖动/双击/甩动地图 → 退出跟随（比镜头监听可靠，不会误杀跟随动画）
+        aMap.setAMapGestureListener(object : com.amap.api.maps.model.AMapGestureListener {
+            override fun onScroll(dx: Float, dy: Float) { exitFollowMode() }
+            override fun onFling(dx: Float, dy: Float) { exitFollowMode() }
+            override fun onDoubleTap(x: Float, y: Float) { exitFollowMode() }
+            override fun onSingleTap(x: Float, y: Float) {}
+            override fun onLongPress(x: Float, y: Float) {}
+            override fun onDown(x: Float, y: Float) {}
+            override fun onUp(x: Float, y: Float) {}
+            override fun onMapStable() {}
+        })
+
         onDispose {
             owner.lifecycle.removeObserver(observer)
             mapView.onDestroy()
@@ -518,11 +569,17 @@ private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
         // ---- 自绘"回到我的位置"按钮：屏幕右侧垂直居中（内置按钮在右下角会被底部面板遮挡） ----
         SmallFloatingActionButton(
             onClick = {
-                // 首选 SDK 缓存的蓝点位置；无则回退到最新轨迹点
-                val blueDot = aMap.myLocation as? LatLng
-                val target = blueDot
+                // 用监听器缓存的蓝点位置；无则回退到最新轨迹点
+                val target = blueDotLatLng.value
                     ?: data.points.lastOrNull()?.let { LatLng(it.latitude, it.longitude) }
-                target?.let { aMap.animateCamera(CameraUpdateFactory.changeLatLng(it)) }
+                if (target != null) {
+                    // 开启跟随模式：蓝点居中+旋转，手动拖图自动退出
+                    followMode.value = true
+                    aMap.myLocationStyle = followStyle
+                    aMap.animateCamera(CameraUpdateFactory.changeLatLng(target))
+                } else {
+                    Toast.makeText(context, "尚未获取到定位", Toast.LENGTH_SHORT).show()
+                }
             },
             modifier = Modifier
                 .align(Alignment.CenterEnd)
@@ -535,18 +592,25 @@ private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
                 tint = Color(0xFF2E7D32)
             )
         }
+
+        // ---- 图层切换：右上角（避开顶部数据面板） ----
+        com.example.myfirstapp.ui.components.MapLayerSwitcher(
+            current = layerMode,
+            onSelect = { mode ->
+                layerMode = mode
+                com.example.myfirstapp.ui.components.applyMapLayer(aMap, mode, terrainOverlay)
+            },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 130.dp, end = 12.dp)
+        )
     }
 
-    // 轨迹点变化 → 重画轨迹线；首个点 → 移动镜头
+    // 轨迹点变化 → 只重画轨迹线（镜头不再自动移动，由定位按钮手动回中）
     LaunchedEffect(data.points.size) {
-        if (data.points.isEmpty()) { aMap.clear(); cameraFollowed = false; return@LaunchedEffect }
-        if (!cameraFollowed) {
-            aMap.moveCamera(
-                CameraUpdateFactory.newLatLngZoom(
-                    LatLng(data.points.first().latitude, data.points.first().longitude), 17f
-                )
-            )
-            cameraFollowed = true
+        if (data.points.isEmpty()) {
+            aMap.clear()
+            return@LaunchedEffect
         }
         if (data.points.size >= 2) {
             aMap.clear()
