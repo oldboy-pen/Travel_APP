@@ -10,6 +10,8 @@
     <!-- ============ 定位权限 ============ -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- 语音标记需要 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- 息屏后台持续记录轨迹需要（用户需在设置中选"始终允许"） -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
@@ -34,7 +36,7 @@
         <!-- ★ 高德开放平台 Key：替换成你自己的！ -->
         <meta-data
             android:name="com.amap.api.v2.apikey"
-            android:value="" />
+            android:value="8844b9b23ba616c86e95e7d45b1d31a8" />
 
         <!-- 高德定位 SDK 的后台服务 -->
         <service android:name="com.amap.api.location.APSService" />

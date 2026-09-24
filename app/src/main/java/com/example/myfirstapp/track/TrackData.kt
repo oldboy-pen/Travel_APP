@@ -79,13 +79,13 @@ object GeoUtils {
 
     /**
      * 判断新定位点是否值得加入轨迹（降噪）：
-     * - 与上一点距离 < 2 米且速度 < 0.5 m/s 视为静止漂移，丢弃
-     * - 距离 > 200 米视为 GPS 跳点，丢弃
+     * - 与上一点距离 < 3 米且速度 < 1 m/s 视为静止漂移，丢弃
+     * - 1 秒间隔下距离 > 60 米（≈216 km/h）视为 GPS 跳点，丢弃
      */
     fun isNoise(last: TrackPoint?, lat: Double, lng: Double, speed: Float): Boolean {
         if (last == null) return false
         val d = distance(last.latitude, last.longitude, lat, lng)
-        return (d < 2 && speed < 0.5) || d > 200
+        return (d < 3 && speed < 1.0) || d > 60
     }
 
     /** 格式化时长 mm:ss / h:mm:ss */

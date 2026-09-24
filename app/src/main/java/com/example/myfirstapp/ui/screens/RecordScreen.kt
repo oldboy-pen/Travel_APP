@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Videocam
@@ -500,7 +501,7 @@ private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
         }
         owner.lifecycle.addObserver(observer)
         aMap.uiSettings.isZoomControlsEnabled = false
-        aMap.uiSettings.isMyLocationButtonEnabled = true
+        aMap.uiSettings.isMyLocationButtonEnabled = false // 关掉右下角内置按钮（会被底部面板遮挡），改为自绘 FAB
         aMap.isMyLocationEnabled = true
         aMap.myLocationStyle = MyLocationStyle().apply {
             myLocationType(MyLocationStyle.LOCATION_TYPE_LOCATION_ROTATE) // 定位+旋转跟随
@@ -511,7 +512,30 @@ private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
             mapView.onDestroy()
         }
     }
-    AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
+    Box(modifier = Modifier.fillMaxSize()) {
+        AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
+
+        // ---- 自绘"回到我的位置"按钮：屏幕右侧垂直居中（内置按钮在右下角会被底部面板遮挡） ----
+        SmallFloatingActionButton(
+            onClick = {
+                // 首选 SDK 缓存的蓝点位置；无则回退到最新轨迹点
+                val blueDot = aMap.myLocation as? LatLng
+                val target = blueDot
+                    ?: data.points.lastOrNull()?.let { LatLng(it.latitude, it.longitude) }
+                target?.let { aMap.animateCamera(CameraUpdateFactory.changeLatLng(it)) }
+            },
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = 12.dp),
+            containerColor = Color.White
+        ) {
+            Icon(
+                Icons.Default.MyLocation,
+                contentDescription = "回到我的位置",
+                tint = Color(0xFF2E7D32)
+            )
+        }
+    }
 
     // 轨迹点变化 → 重画轨迹线；首个点 → 移动镜头
     LaunchedEffect(data.points.size) {
@@ -565,8 +589,13 @@ private fun RecordQuickActionButton(
             )
         else ButtonDefaults.outlinedButtonColors()
     ) {
-        Icon(icon, contentDescription = label, Modifier.size(18.dp))
-        Spacer(Modifier.width(4.dp))
-        Text(label)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(vertical = 6.dp)
+        ) {
+            Icon(icon, contentDescription = label, Modifier.size(22.dp))
+            Spacer(Modifier.height(3.dp))
+            Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        }
     }
 }

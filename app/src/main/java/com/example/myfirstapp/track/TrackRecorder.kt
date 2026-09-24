@@ -71,7 +71,7 @@ object TrackRecorder {
                         return@setLocationListener
                     }
                     if (_data.value.state != RecorderState.RECORDING) return@setLocationListener
-                    onNewFix(loc.latitude, loc.longitude, loc.altitude, loc.speed, loc.time)
+                    onNewFix(loc.latitude, loc.longitude, loc.altitude, loc.speed, loc.time, loc.accuracy)
                 }
             }
         }
@@ -91,10 +91,19 @@ object TrackRecorder {
         }
     }
 
-    /** 处理一次有效定位：降噪 → 累积距离/爬升 */
-    private fun onNewFix(lat: Double, lng: Double, altitude: Double, speed: Float, time: Long) {
+    /** 处理一次有效定位：精度过滤 → 降噪 → 累积距离/爬升 */
+    private fun onNewFix(lat: Double, lng: Double, altitude: Double, speed: Float, time: Long, accuracy: Float) {
         val current = _data.value
         val last = current.points.lastOrNull()
+        // 精度过滤：冷启动首点要求误差 ≤30 米，后续 ≤50 米；
+        // 超差的点直接丢弃，防止 GPS 漂移虚增距离（首次记录距离暴涨的主因）
+        val maxAccuracy = if (last == null) 30f else 50f
+        if (accuracy > 0f && accuracy > maxAccuracy) {
+            // 精度差的点不进轨迹，但仍更新"最后位置"，保证打点标记可用
+            _data.value = current.copy(lastLatitude = lat, lastLongitude = lng)
+            return
+        }
+
         if (GeoUtils.isNoise(last, lat, lng, speed)) return
 
         val point = TrackPoint(lat, lng, if (time > 0) time else System.currentTimeMillis(), altitude, speed)
