@@ -175,7 +175,9 @@ fun TrackDetailScreen(trackId: String, onBack: () -> Unit) {
 @Composable
 private fun TrackPlaybackMapView(t: Track) {
     val context = LocalContext.current
-    val mapView = remember { MapView(context) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    // 池化复用：进出详情页不销毁地图（高德 SDK 频繁销毁-重建会 native 崩溃）
+    val mapView = remember { com.example.myfirstapp.ui.components.AMapViewPool.get("trackDetail", context) }
     val aMap = remember { mapView.map }
 
     // ---- 图层切换状态 ----
@@ -183,11 +185,24 @@ private fun TrackPlaybackMapView(t: Track) {
     val terrainOverlay = remember { mutableStateOf<com.amap.api.maps.model.TileOverlay?>(null) }
 
     DisposableEffect(Unit) {
-        mapView.onCreate(null)
+        com.example.myfirstapp.ui.components.AMapViewPool.ensureCreated("trackDetail", context)
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> mapView.onResume()
+                androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> mapView.onPause()
+                androidx.lifecycle.Lifecycle.Event.ON_DESTROY ->
+                    com.example.myfirstapp.ui.components.AMapViewPool.destroy("trackDetail")
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
         aMap.uiSettings.isZoomControlsEnabled = false
         onDispose {
+            // 离开详情页：清掉上一条轨迹的覆盖物 + 解除监听 + pause；地图实例留在池中
+            lifecycleOwner.lifecycle.removeObserver(observer)
             terrainOverlay.value?.remove()
-            mapView.onDestroy()
+            aMap.clear()
+            mapView.onPause()
         }
     }
     Box(modifier = Modifier.fillMaxSize()) {

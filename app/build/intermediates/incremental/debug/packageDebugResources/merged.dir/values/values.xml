@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#6650A4</color>
+    <string name="app_name">撒野</string>
+    <string name="privacy_body">本应用使用高德地图 SDK 提供地图、定位与导航服务，会在您使用相关功能时收集位置信息。\n\n选择“同意”即表示您已阅读并同意高德地图服务条款。</string>
+    <string name="privacy_title">隐私政策</string>
+    <style name="Theme.MyFirstApp" parent="android:Theme.Material.Light.NoActionBar"/>
+</resources>

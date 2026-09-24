@@ -160,23 +160,27 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
 private fun AMapView(state: MapUiState, onMapLongClick: (LatLng) -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val mapView = remember { MapView(context) }
+    // 池化复用：切 Tab 不销毁地图（高德 SDK 频繁销毁-重建会 native 崩溃）
+    val mapView = remember { com.example.myfirstapp.ui.components.AMapViewPool.get("map", context) }
     val aMap = remember { mapView.map }
 
     // 生命周期绑定
     DisposableEffect(lifecycleOwner) {
+        com.example.myfirstapp.ui.components.AMapViewPool.ensureCreated("map", context)
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_CREATE -> mapView.onCreate(null)
                 Lifecycle.Event.ON_RESUME -> mapView.onResume()
                 Lifecycle.Event.ON_PAUSE -> mapView.onPause()
+                Lifecycle.Event.ON_DESTROY ->
+                    com.example.myfirstapp.ui.components.AMapViewPool.destroy("map")
                 else -> {}
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
+            // 切走页面：只解除监听 + pause，不销毁地图（实例留在池中复用）
             lifecycleOwner.lifecycle.removeObserver(observer)
-            mapView.onDestroy()
+            mapView.onPause()
         }
     }
 

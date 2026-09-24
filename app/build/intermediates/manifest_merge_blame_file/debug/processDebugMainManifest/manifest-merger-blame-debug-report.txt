@@ -80,142 +80,141 @@
 47-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:32:9-41
 48        android:supportsRtl="true"
 48-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:33:9-35
-49        android:testOnly="true"
-50        android:theme="@style/Theme.MyFirstApp" >
-50-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:34:9-48
-51
-52        <!-- ★ 高德开放平台 Key：替换成你自己的！ -->
-53        <meta-data
-53-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:37:9-39:64
-54            android:name="com.amap.api.v2.apikey"
-54-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:38:13-50
-55            android:value="8844b9b23ba616c86e95e7d45b1d31a8" />
-55-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:39:13-61
-56
-57        <!-- 高德定位 SDK 的后台服务 -->
-58        <service android:name="com.amap.api.location.APSService" />
-58-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:42:9-68
-58-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:42:18-65
-59
-60        <!-- 轨迹记录前台服务：Android 14+ 必须声明 foregroundServiceType -->
-61        <service
-61-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:45:9-48:56
-62            android:name="com.example.myfirstapp.track.TrackRecordingService"
-62-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:46:13-56
-63            android:exported="false"
-63-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:47:13-37
-64            android:foregroundServiceType="location" />
-64-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:48:13-53
-65
-66        <!-- GPX 文件分享 -->
-67        <provider
-68            android:name="androidx.core.content.FileProvider"
-68-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:52:13-62
-69            android:authorities="com.example.myfirstapp.fileprovider"
-69-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:53:13-64
-70            android:exported="false"
-70-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:54:13-37
-71            android:grantUriPermissions="true" >
-71-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:55:13-47
-72            <meta-data
-72-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:56:13-58:54
-73                android:name="android.support.FILE_PROVIDER_PATHS"
-73-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:57:17-67
-74                android:resource="@xml/file_paths" />
-74-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:58:17-51
-75        </provider>
-76
-77        <!-- App 入口 Activity -->
-78        <activity
-78-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:62:9-69:20
-79            android:name="com.example.myfirstapp.MainActivity"
-79-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:63:13-41
-80            android:exported="true" >
-80-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:64:13-36
-81            <intent-filter>
-81-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:65:13-68:29
-82                <action android:name="android.intent.action.MAIN" />
-82-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:66:17-69
-82-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:66:25-66
-83
-84                <category android:name="android.intent.category.LAUNCHER" />
-84-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:67:17-77
-84-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:67:27-74
-85            </intent-filter>
-86        </activity>
-87
-88        <provider
-88-->[androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:24:9-32:20
-89            android:name="androidx.startup.InitializationProvider"
-89-->[androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:25:13-67
-90            android:authorities="com.example.myfirstapp.androidx-startup"
-90-->[androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:26:13-68
-91            android:exported="false" >
-91-->[androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:27:13-37
-92            <meta-data
-92-->[androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:29:13-31:52
-93                android:name="androidx.emoji2.text.EmojiCompatInitializer"
-93-->[androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:30:17-75
-94                android:value="androidx.startup" />
-94-->[androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:31:17-49
-95            <meta-data
-95-->[androidx.lifecycle:lifecycle-process:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\82e752d385e3ef04a6944643896d10cc\transformed\lifecycle-process-2.8.6\AndroidManifest.xml:29:13-31:52
-96                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
-96-->[androidx.lifecycle:lifecycle-process:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\82e752d385e3ef04a6944643896d10cc\transformed\lifecycle-process-2.8.6\AndroidManifest.xml:30:17-78
-97                android:value="androidx.startup" />
-97-->[androidx.lifecycle:lifecycle-process:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\82e752d385e3ef04a6944643896d10cc\transformed\lifecycle-process-2.8.6\AndroidManifest.xml:31:17-49
-98            <meta-data
-98-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:29:13-31:52
-99                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
-99-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:30:17-85
-100                android:value="androidx.startup" />
-100-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:31:17-49
-101        </provider>
-102
-103        <activity
-103-->[androidx.compose.ui:ui-tooling-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\463ab415684a6e63012533bfbcfb0f94\transformed\ui-tooling-release\AndroidManifest.xml:23:9-25:39
-104            android:name="androidx.compose.ui.tooling.PreviewActivity"
-104-->[androidx.compose.ui:ui-tooling-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\463ab415684a6e63012533bfbcfb0f94\transformed\ui-tooling-release\AndroidManifest.xml:24:13-71
-105            android:exported="true" />
-105-->[androidx.compose.ui:ui-tooling-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\463ab415684a6e63012533bfbcfb0f94\transformed\ui-tooling-release\AndroidManifest.xml:25:13-36
-106
-107        <receiver
-107-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:34:9-52:20
-108            android:name="androidx.profileinstaller.ProfileInstallReceiver"
-108-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:35:13-76
-109            android:directBootAware="false"
-109-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:36:13-44
-110            android:enabled="true"
-110-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:37:13-35
-111            android:exported="true"
-111-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:38:13-36
-112            android:permission="android.permission.DUMP" >
-112-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:39:13-57
-113            <intent-filter>
-113-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:40:13-42:29
-114                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
-114-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:41:17-91
-114-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:41:25-88
-115            </intent-filter>
-116            <intent-filter>
-116-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:43:13-45:29
-117                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
-117-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:44:17-85
-117-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:44:25-82
-118            </intent-filter>
-119            <intent-filter>
-119-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:46:13-48:29
-120                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
-120-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:47:17-88
-120-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:47:25-85
-121            </intent-filter>
-122            <intent-filter>
-122-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:49:13-51:29
-123                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
-123-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:50:17-95
-123-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:50:25-92
-124            </intent-filter>
-125        </receiver>
-126    </application>
-127
-128</manifest>
+49        android:theme="@style/Theme.MyFirstApp" >
+49-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:34:9-48
+50
+51        <!-- ★ 高德开放平台 Key：替换成你自己的！ -->
+52        <meta-data
+52-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:37:9-39:64
+53            android:name="com.amap.api.v2.apikey"
+53-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:38:13-50
+54            android:value="8844b9b23ba616c86e95e7d45b1d31a8" />
+54-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:39:13-61
+55
+56        <!-- 高德定位 SDK 的后台服务 -->
+57        <service android:name="com.amap.api.location.APSService" />
+57-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:42:9-68
+57-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:42:18-65
+58
+59        <!-- 轨迹记录前台服务：Android 14+ 必须声明 foregroundServiceType -->
+60        <service
+60-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:45:9-48:56
+61            android:name="com.example.myfirstapp.track.TrackRecordingService"
+61-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:46:13-56
+62            android:exported="false"
+62-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:47:13-37
+63            android:foregroundServiceType="location" />
+63-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:48:13-53
+64
+65        <!-- GPX 文件分享 -->
+66        <provider
+67            android:name="androidx.core.content.FileProvider"
+67-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:52:13-62
+68            android:authorities="com.example.myfirstapp.fileprovider"
+68-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:53:13-64
+69            android:exported="false"
+69-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:54:13-37
+70            android:grantUriPermissions="true" >
+70-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:55:13-47
+71            <meta-data
+71-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:56:13-58:54
+72                android:name="android.support.FILE_PROVIDER_PATHS"
+72-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:57:17-67
+73                android:resource="@xml/file_paths" />
+73-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:58:17-51
+74        </provider>
+75
+76        <!-- App 入口 Activity -->
+77        <activity
+77-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:62:9-69:20
+78            android:name="com.example.myfirstapp.MainActivity"
+78-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:63:13-41
+79            android:exported="true" >
+79-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:64:13-36
+80            <intent-filter>
+80-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:65:13-68:29
+81                <action android:name="android.intent.action.MAIN" />
+81-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:66:17-69
+81-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:66:25-66
+82
+83                <category android:name="android.intent.category.LAUNCHER" />
+83-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:67:17-77
+83-->D:\02_Project\04_Android\Travel_APP\app\src\main\AndroidManifest.xml:67:27-74
+84            </intent-filter>
+85        </activity>
+86
+87        <provider
+87-->[androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:24:9-32:20
+88            android:name="androidx.startup.InitializationProvider"
+88-->[androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:25:13-67
+89            android:authorities="com.example.myfirstapp.androidx-startup"
+89-->[androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:26:13-68
+90            android:exported="false" >
+90-->[androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:27:13-37
+91            <meta-data
+91-->[androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:29:13-31:52
+92                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+92-->[androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:30:17-75
+93                android:value="androidx.startup" />
+93-->[androidx.emoji2:emoji2:1.3.0] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\8be0a6fcfb4a1d56441338b0b9d03ace\transformed\emoji2-1.3.0\AndroidManifest.xml:31:17-49
+94            <meta-data
+94-->[androidx.lifecycle:lifecycle-process:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\82e752d385e3ef04a6944643896d10cc\transformed\lifecycle-process-2.8.6\AndroidManifest.xml:29:13-31:52
+95                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+95-->[androidx.lifecycle:lifecycle-process:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\82e752d385e3ef04a6944643896d10cc\transformed\lifecycle-process-2.8.6\AndroidManifest.xml:30:17-78
+96                android:value="androidx.startup" />
+96-->[androidx.lifecycle:lifecycle-process:2.8.6] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\82e752d385e3ef04a6944643896d10cc\transformed\lifecycle-process-2.8.6\AndroidManifest.xml:31:17-49
+97            <meta-data
+97-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:29:13-31:52
+98                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+98-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:30:17-85
+99                android:value="androidx.startup" />
+99-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:31:17-49
+100        </provider>
+101
+102        <activity
+102-->[androidx.compose.ui:ui-tooling-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\463ab415684a6e63012533bfbcfb0f94\transformed\ui-tooling-release\AndroidManifest.xml:23:9-25:39
+103            android:name="androidx.compose.ui.tooling.PreviewActivity"
+103-->[androidx.compose.ui:ui-tooling-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\463ab415684a6e63012533bfbcfb0f94\transformed\ui-tooling-release\AndroidManifest.xml:24:13-71
+104            android:exported="true" />
+104-->[androidx.compose.ui:ui-tooling-android:1.7.3] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\463ab415684a6e63012533bfbcfb0f94\transformed\ui-tooling-release\AndroidManifest.xml:25:13-36
+105
+106        <receiver
+106-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:34:9-52:20
+107            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+107-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:35:13-76
+108            android:directBootAware="false"
+108-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:36:13-44
+109            android:enabled="true"
+109-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:37:13-35
+110            android:exported="true"
+110-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:38:13-36
+111            android:permission="android.permission.DUMP" >
+111-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:39:13-57
+112            <intent-filter>
+112-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:40:13-42:29
+113                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+113-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:41:17-91
+113-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:41:25-88
+114            </intent-filter>
+115            <intent-filter>
+115-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:43:13-45:29
+116                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+116-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:44:17-85
+116-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:44:25-82
+117            </intent-filter>
+118            <intent-filter>
+118-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:46:13-48:29
+119                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+119-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:47:17-88
+119-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:47:25-85
+120            </intent-filter>
+121            <intent-filter>
+121-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:49:13-51:29
+122                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+122-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:50:17-95
+122-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\oldboy-pen\.gradle\caches\8.9\transforms\fcfbce585b39843c49dbd8a9deba266b\transformed\profileinstaller-1.3.1\AndroidManifest.xml:50:25-92
+123            </intent-filter>
+124        </receiver>
+125    </application>
+126
+127</manifest>

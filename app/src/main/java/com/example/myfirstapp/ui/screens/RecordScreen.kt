@@ -485,7 +485,8 @@ private fun finishRecording(context: Context, onTrackSaved: (String) -> Unit) {
 private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
     val context = LocalContext.current
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    val mapView = remember { MapView(context) }
+    // 池化复用：切 Tab 不销毁地图（高德 SDK 频繁销毁-重建会 native 崩溃）
+    val mapView = remember { com.example.myfirstapp.ui.components.AMapViewPool.get("record", context) }
     val aMap = remember { mapView.map }
 
     // ---- 图层切换状态 ----
@@ -522,11 +523,13 @@ private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
 
     DisposableEffect(Unit) {
         val owner = lifecycleOwner
+        com.example.myfirstapp.ui.components.AMapViewPool.ensureCreated("record", context)
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             when (event) {
-                androidx.lifecycle.Lifecycle.Event.ON_CREATE -> mapView.onCreate(null)
                 androidx.lifecycle.Lifecycle.Event.ON_RESUME -> mapView.onResume()
                 androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> mapView.onPause()
+                androidx.lifecycle.Lifecycle.Event.ON_DESTROY ->
+                    com.example.myfirstapp.ui.components.AMapViewPool.destroy("record")
                 else -> {}
             }
         }
@@ -559,8 +562,9 @@ private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
         })
 
         onDispose {
+            // 切走页面：只解除监听 + pause，不销毁地图（实例留在池中复用）
             owner.lifecycle.removeObserver(observer)
-            mapView.onDestroy()
+            mapView.onPause()
         }
     }
     Box(modifier = Modifier.fillMaxSize()) {
