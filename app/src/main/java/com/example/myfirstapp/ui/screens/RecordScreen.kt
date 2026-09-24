@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
@@ -63,9 +64,9 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
     var showPhotoSourceDialog by remember { mutableStateOf(false) }
     var cameraOutputUri by remember { mutableStateOf<Uri?>(null) }
 
-    /** 统一的媒体标记入库逻辑（相册、拍照共用） */
-    fun addMediaWaypoint(uri: Uri) {
-        val type = pendingType ?: com.example.myfirstapp.track.WaypointType.PHOTO
+    /** 统一的媒体标记入库逻辑（相册、拍照、录像、录音共用），explicitType 优先于 pendingType */
+    fun addMediaWaypoint(uri: Uri, explicitType: com.example.myfirstapp.track.WaypointType? = null) {
+        val type = explicitType ?: pendingType ?: com.example.myfirstapp.track.WaypointType.PHOTO
         TrackRecorder.addWaypoint(
             type = type,
             text = noteText.ifBlank { "${type.name.lowercase()} 标记 ${data.waypoints.size + 1}" },
@@ -80,7 +81,7 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
     }
 
     val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-        if (success) cameraOutputUri?.let { addMediaWaypoint(it) }
+        if (success) cameraOutputUri?.let { addMediaWaypoint(it, com.example.myfirstapp.track.WaypointType.PHOTO) }
         cameraOutputUri = null
     }
 
@@ -93,6 +94,97 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
         )
         cameraOutputUri = uri
         takePicture.launch(uri)
+    }
+
+    // ---- 录像：系统相机 CaptureVideo，输出到 filesDir/video/ ----
+    val takeVideo = rememberLauncherForActivityResult(ActivityResultContracts.CaptureVideo()) { success ->
+        if (success) cameraOutputUri?.let { addMediaWaypoint(it, com.example.myfirstapp.track.WaypointType.VIDEO) }
+        cameraOutputUri = null
+    }
+
+    /** 拉起系统相机录像，视频存到 filesDir/video/ */
+    fun launchVideoCamera() {
+        val dir = java.io.File(context.filesDir, "video").apply { mkdirs() }
+        val file = java.io.File(dir, "VID_${System.currentTimeMillis()}.mp4")
+        val uri = androidx.core.content.FileProvider.getUriForFile(
+            context, "${context.packageName}.fileprovider", file
+        )
+        cameraOutputUri = uri
+        takeVideo.launch(uri)
+    }
+
+    // ---- 语音标记：应用内 MediaRecorder 直接录音（不再走相册选择器） ----
+    var isRecordingVoice by remember { mutableStateOf(false) }
+    var voiceFile by remember { mutableStateOf<java.io.File?>(null) }
+    var voiceRecorder by remember { mutableStateOf<android.media.MediaRecorder?>(null) }
+    var voiceStartAt by remember { mutableStateOf(0L) }
+    var voiceElapsedSec by remember { mutableStateOf(0) }
+
+    // 录音计时刷新
+    LaunchedEffect(isRecordingVoice) {
+        while (isRecordingVoice) {
+            voiceElapsedSec = ((System.currentTimeMillis() - voiceStartAt) / 1000).toInt()
+            kotlinx.coroutines.delay(500)
+        }
+    }
+
+    // 离开页面时释放录音器
+    DisposableEffect(Unit) {
+        onDispose {
+            runCatching { voiceRecorder?.stop() }
+            runCatching { voiceRecorder?.release() }
+            voiceRecorder = null
+        }
+    }
+
+    fun startVoiceRecording() {
+        runCatching {
+            @Suppress("DEPRECATION") // minSdk 24，旧构造器兼容 Android 7
+            val rec = android.media.MediaRecorder()
+            val dir = java.io.File(context.filesDir, "voice").apply { mkdirs() }
+            val file = java.io.File(dir, "REC_${System.currentTimeMillis()}.m4a")
+            rec.setAudioSource(android.media.MediaRecorder.AudioSource.MIC)
+            rec.setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4)
+            rec.setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC)
+            rec.setAudioEncodingBitRate(96_000)
+            rec.setAudioSamplingRate(44_100)
+            rec.setOutputFile(file.absolutePath)
+            rec.prepare()
+            rec.start()
+            voiceRecorder = rec
+            voiceFile = file
+            voiceStartAt = System.currentTimeMillis()
+            voiceElapsedSec = 0
+            isRecordingVoice = true
+        }.onFailure {
+            Toast.makeText(context, "录音启动失败：${it.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun stopVoiceRecording() {
+        val rec = voiceRecorder ?: return
+        val file = voiceFile
+        runCatching { rec.stop() }
+        runCatching { rec.release() }
+        voiceRecorder = null
+        isRecordingVoice = false
+        if (file != null && file.exists() && file.length() > 0) {
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                context, "${context.packageName}.fileprovider", file
+            )
+            addMediaWaypoint(uri, com.example.myfirstapp.track.WaypointType.VOICE)
+        } else {
+            Toast.makeText(context, "录音太短，已丢弃", Toast.LENGTH_SHORT).show()
+        }
+        voiceFile = null
+    }
+
+    // 录音权限
+    val voicePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) startVoiceRecording()
+        else Toast.makeText(context, "没有麦克风权限无法录制语音", Toast.LENGTH_SHORT).show()
     }
 
     // ---- 权限：定位（Android 6+）+ 通知（Android 13+，前台服务需要） ----
@@ -224,12 +316,24 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
                                     showPhotoSourceDialog = true
                                 }
                                 RecordQuickActionButton(
-                                    label = "语音",
+                                    label = if (isRecordingVoice) "停止 ${voiceElapsedSec}s"
+                                    else "语音",
                                     icon = Icons.Default.Mic,
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier.weight(1f),
+                                    highlight = isRecordingVoice
                                 ) {
-                                    pendingType = com.example.myfirstapp.track.WaypointType.VOICE
-                                    photoPicker.launch("audio/*")
+                                    if (isRecordingVoice) {
+                                        stopVoiceRecording()
+                                    } else if (ContextCompat.checkSelfPermission(
+                                            context, Manifest.permission.RECORD_AUDIO
+                                        ) == PackageManager.PERMISSION_GRANTED
+                                    ) {
+                                        pendingType = com.example.myfirstapp.track.WaypointType.VOICE
+                                        startVoiceRecording()
+                                    } else {
+                                        pendingType = com.example.myfirstapp.track.WaypointType.VOICE
+                                        voicePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                    }
                                 }
                                 RecordQuickActionButton(
                                     label = "设置",
@@ -314,7 +418,7 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
         if (showPhotoSourceDialog) {
             AlertDialog(
                 onDismissRequest = { showPhotoSourceDialog = false },
-                title = { Text("添加照片标记") },
+                title = { Text("拍摄照片 / 视频") },
                 text = {
                     Column {
                         TextButton(
@@ -327,6 +431,18 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
                             Icon(Icons.Default.CameraAlt, null, Modifier.size(20.dp))
                             Spacer(Modifier.width(8.dp))
                             Text("拍照")
+                        }
+                        TextButton(
+                            onClick = {
+                                showPhotoSourceDialog = false
+                                pendingType = com.example.myfirstapp.track.WaypointType.VIDEO
+                                launchVideoCamera()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Videocam, null, Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("录像")
                         }
                         TextButton(
                             onClick = {
@@ -435,12 +551,19 @@ private fun RecordQuickActionButton(
     label: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     modifier: Modifier = Modifier,
+    highlight: Boolean = false,
     onClick: () -> Unit
 ) {
     OutlinedButton(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(14.dp)
+        shape = RoundedCornerShape(14.dp),
+        colors = if (highlight)
+            ButtonDefaults.outlinedButtonColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.error
+            )
+        else ButtonDefaults.outlinedButtonColors()
     ) {
         Icon(icon, contentDescription = label, Modifier.size(18.dp))
         Spacer(Modifier.width(4.dp))
