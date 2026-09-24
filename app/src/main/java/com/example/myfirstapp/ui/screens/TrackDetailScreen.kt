@@ -18,6 +18,8 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.*
@@ -265,34 +267,157 @@ private fun WaypointDetailCard(w: com.example.myfirstapp.track.Waypoint, context
                                     .height(200.dp)
                             )
                         }
-                    }
-                    com.example.myfirstapp.track.WaypointType.VIDEO -> {
+                    }                    com.example.myfirstapp.track.WaypointType.VIDEO -> {
                         val uri = Uri.parse(w.mediaUri)
-                        Button(
-                            onClick = {
-                                val intent = Intent(Intent.ACTION_VIEW).apply {
-                                    setDataAndType(uri, "video/*")
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                                context.startActivity(intent)
-                            }
-                        ) { Text("播放视频") }
+                        InAppVideoPlayer(uri)
                     }
                     com.example.myfirstapp.track.WaypointType.VOICE -> {
                         val uri = Uri.parse(w.mediaUri)
-                        Button(
-                            onClick = {
-                                val intent = Intent(Intent.ACTION_VIEW).apply {
-                                    setDataAndType(uri, "audio/*")
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                                context.startActivity(intent)
-                            }
-                        ) { Text("播放语音") }
+                        InAppVoicePlayer(uri)
                     }
                     else -> Unit
                 }
             }
+        }
+    }
+}
+
+/** ============ 应用内媒体播放组件 ============ */
+
+/**
+ * 应用内视频播放器：VideoView 包装成 Compose。
+ * 自带 MediaController（进度条、播放/暂停），点屏幕呼出。
+ */
+@Composable
+private fun InAppVideoPlayer(uri: Uri) {
+    val context = LocalContext.current
+    var videoHeight by remember { mutableStateOf(220.dp) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        AndroidView(
+            factory = { ctx ->
+                android.widget.VideoView(ctx).apply {
+                    setVideoURI(uri)
+                    setMediaController(android.widget.MediaController(ctx))
+                    setOnPreparedListener { mp ->
+                        // 按视频宽高比调整显示高度
+                        val w = mp.videoWidth
+                        val h = mp.videoHeight
+                        if (w > 0 && h > 0) {
+                            videoHeight = (220.dp * h / w).coerceIn(140.dp, 360.dp)
+                        }
+                    }
+                    setOnErrorListener { _, what, extra ->
+                        Toast.makeText(ctx, "视频播放失败（$what/$extra）", Toast.LENGTH_SHORT).show()
+                        true
+                    }
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(videoHeight)
+        )
+        TextButton(
+            onClick = {
+                // 备用：用外部播放器打开（兼容个别设备硬解码不支持的格式）
+                runCatching {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, "video/*")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                    )
+                }.onFailure {
+                    Toast.makeText(context, "没有可用的视频播放器", Toast.LENGTH_SHORT).show()
+                }
+            }
+        ) { Text("用其他应用打开", style = MaterialTheme.typography.labelSmall) }
+    }
+}
+
+/**
+ * 应用内语音播放器：MediaPlayer + 播放/暂停按钮 + 进度条。
+ */
+@Composable
+private fun InAppVoicePlayer(uri: Uri) {
+    val context = LocalContext.current
+    var player by remember { mutableStateOf<android.media.MediaPlayer?>(null) }
+    var playing by remember { mutableStateOf(false) }
+    var prepared by remember { mutableStateOf(false) }
+    var progress by remember { mutableStateOf(0f) }   // 0..1
+    var totalMs by remember { mutableStateOf(0) }
+
+    // 初始化播放器
+    LaunchedEffect(uri) {
+        runCatching {
+            android.media.MediaPlayer().apply {
+                setDataSource(context, uri)
+                setOnPreparedListener {
+                    prepared = true
+                    totalMs = it.duration
+                }
+                setOnCompletionListener {
+                    playing = false
+                    progress = 0f
+                    it.seekTo(0)
+                }
+                prepareAsync()
+            }
+        }.onSuccess { player = it }
+            .onFailure { Toast.makeText(context, "语音加载失败：${it.message}", Toast.LENGTH_SHORT).show() }
+    }
+
+    // 播放中轮询进度
+    LaunchedEffect(playing) {
+        while (playing) {
+            player?.let { p ->
+                if (p.duration > 0) progress = p.currentPosition.toFloat() / p.duration
+            }
+            kotlinx.coroutines.delay(200)
+        }
+    }
+
+    // 离开时释放
+    DisposableEffect(uri) {
+        onDispose {
+            runCatching { player?.release() }
+            player = null
+        }
+    }
+
+    if (prepared) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                FilledTonalButton(
+                    onClick = {
+                        player?.let { p ->
+                            if (p.isPlaying) {
+                                p.pause(); playing = false
+                            } else {
+                                p.start(); playing = true
+                            }
+                        }
+                    }
+                ) {
+                    Icon(
+                        if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = null, Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(if (playing) "暂停" else "播放")
+                }
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    "%02d:%02d".format((totalMs / 1000) / 60, (totalMs / 1000) % 60),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
