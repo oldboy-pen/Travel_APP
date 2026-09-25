@@ -14,6 +14,8 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- 息屏后台持续记录轨迹需要（用户需在设置中选"始终允许"） -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!-- Android 10+ 硬件计步传感器需要（确认"确实在走"，防徒步小位移被降噪误杀） -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
 
     <!-- ============ 前台服务（轨迹记录保活，类似两步路） ============ -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />

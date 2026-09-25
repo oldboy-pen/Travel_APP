@@ -68,4 +68,7 @@ dependencies {
 
     // 调试工具（仅 debug 生效）
     debugImplementation(libs.androidx.ui.tooling)
+
+    // 单元测试
+    testImplementation("junit:junit:4.13.2")
 }

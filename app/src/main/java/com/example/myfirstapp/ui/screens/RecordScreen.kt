@@ -61,6 +61,8 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
     var noteText by remember { mutableStateOf("") }
     var showWaypointSettings by remember { mutableStateOf(false) }
     var pendingType by remember { mutableStateOf<com.example.myfirstapp.track.WaypointType?>(null) }
+    var showActivitySelector by remember { mutableStateOf(false) }
+    var selectedActivityType by remember { mutableStateOf(com.example.myfirstapp.track.ActivityType.DEFAULT) }
     // 拍照 / 相册选择弹窗 + 相机输出 Uri
     var showPhotoSourceDialog by remember { mutableStateOf(false) }
     var cameraOutputUri by remember { mutableStateOf<Uri?>(null) }
@@ -195,6 +197,16 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
                     == PackageManager.PERMISSION_GRANTED
         )
     }
+
+    fun startTrackingWithSelectedMode(activityType: com.example.myfirstapp.track.ActivityType) {
+        selectedActivityType = activityType
+        if (!permissionsGranted) {
+            Toast.makeText(context, "请先授予定位权限", Toast.LENGTH_SHORT).show()
+            return
+        }
+        TrackRecorder.start(context, activityType)
+        TrackRecordingService.start(context)
+    }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
@@ -205,6 +217,8 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
     }
     LaunchedEffect(Unit) {
         val need = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+        // Android 10+ 计步传感器需要：用于确认"确实在走"，防止小位移被降噪误杀
+        if (Build.VERSION.SDK_INT >= 29) need += Manifest.permission.ACTIVITY_RECOGNITION
         if (Build.VERSION.SDK_INT >= 33) need += Manifest.permission.POST_NOTIFICATIONS
         permissionLauncher.launch(need.toTypedArray())
     }
@@ -236,6 +250,7 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
                     ) + " km/h", "均速"
                 )
                 StatCell("%.0f 米".format(data.climbMeters), "爬升")
+                StatCell("${data.stepCount}", "步数")
             }
         }
 
@@ -255,9 +270,9 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
                         data.state == RecorderState.RECORDING && data.locationError != null ->
                             data.locationError.orEmpty()
                         data.state == RecorderState.RECORDING && data.fixCount < 5 -> "GPS 信号弱，请在开阔处等待…"
-                        data.state == RecorderState.RECORDING -> "正在记录 · 当前 %.1f km/h".format(data.currentSpeed * 3.6)
-                        data.state == RecorderState.PAUSED -> "已暂停"
-                        else -> "准备就绪"
+                        data.state == RecorderState.RECORDING -> "正在记录 · ${data.activityType.label} · 当前 %.1f km/h".format(data.currentSpeed * 3.6)
+                        data.state == RecorderState.PAUSED -> "已暂停 · ${data.activityType.label}"
+                        else -> "准备就绪 · ${data.activityType.label}"
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = if (data.state == RecorderState.RECORDING &&
@@ -273,14 +288,7 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
                 ) {
                     when (data.state) {
                         RecorderState.IDLE -> Button(
-                            onClick = {
-                                if (!permissionsGranted) {
-                                    Toast.makeText(context, "请先授予定位权限", Toast.LENGTH_SHORT).show()
-                                    return@Button
-                                }
-                                TrackRecorder.start(context)
-                                TrackRecordingService.start(context) // 前台服务保活
-                            },
+                            onClick = { showActivitySelector = true },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
                         ) {
                             Icon(Icons.Default.PlayArrow, null)
@@ -415,6 +423,33 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
                 }
             }
         }
+
+        if (showActivitySelector) {
+            AlertDialog(
+                onDismissRequest = { showActivitySelector = false },
+                title = { Text("选择运动方式") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        com.example.myfirstapp.track.ActivityType.values().forEach { type ->
+                            TextButton(
+                                onClick = {
+                                    showActivitySelector = false
+                                    startTrackingWithSelectedMode(type)
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(type.label, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { showActivitySelector = false }) { Text("取消") }
+                }
+            )
+        }
+
         // ---- 照片来源选择：拍照 / 相册 ----
         if (showPhotoSourceDialog) {
             AlertDialog(

@@ -33,6 +33,7 @@ class TrackRepository private constructor(context: Context) {
             put("distance", track.distanceMeters)
             put("duration", track.durationMillis)
             put("climb", track.climbMeters)
+            put("activityType", track.activityType.name)
             put("points", JSONArray(track.points.map { p ->
                 JSONObject().apply {
                     put("lat", p.latitude); put("lng", p.longitude)
@@ -97,7 +98,10 @@ class TrackRepository private constructor(context: Context) {
             },
             distanceMeters = json.getDouble("distance"),
             durationMillis = json.getLong("duration"),
-            climbMeters = json.getDouble("climb")
+            climbMeters = json.getDouble("climb"),
+            activityType = runCatching {
+                ActivityType.valueOf(json.optString("activityType", ActivityType.DEFAULT.name))
+            }.getOrDefault(ActivityType.DEFAULT)
         )
     }
 
@@ -187,7 +191,8 @@ class TrackRepository private constructor(context: Context) {
             waypoints = wpts,
             distanceMeters = distance,
             durationMillis = 0L,
-            climbMeters = 0.0
+            climbMeters = 0.0,
+            activityType = ActivityType.DEFAULT
         ).also { save(it) }
     }.getOrNull()
 
