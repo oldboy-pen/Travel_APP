@@ -499,6 +499,8 @@ private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
     val blueDotLatLng = remember { mutableStateOf<LatLng?>(null) }
     // 首次拿到定位 → 自动回中一次
     val hasAutoCentered = remember { mutableStateOf(false) }
+    // 最后一次用户手势时间（60s 无操作自动回中用）
+    val lastGestureAt = remember { mutableStateOf(0L) }
     val locationStyle = remember {
         MyLocationStyle().apply {
             // 纯定位点：只显示蓝点不自动转镜头；跟随模式用 LOCATION_TYPE_LOCATION_ROTATE
@@ -549,14 +551,14 @@ private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
             }
         }
 
-        // 手势直接判定：用户拖动/双击/甩动地图 → 退出跟随（比镜头监听可靠，不会误杀跟随动画）
+        // 手势直接判定：用户拖动/双击/甩动地图 → 退出跟随 + 刷新"无操作计时"
         aMap.setAMapGestureListener(object : com.amap.api.maps.model.AMapGestureListener {
-            override fun onScroll(dx: Float, dy: Float) { exitFollowMode() }
-            override fun onFling(dx: Float, dy: Float) { exitFollowMode() }
-            override fun onDoubleTap(x: Float, y: Float) { exitFollowMode() }
-            override fun onSingleTap(x: Float, y: Float) {}
-            override fun onLongPress(x: Float, y: Float) {}
-            override fun onDown(x: Float, y: Float) {}
+            override fun onScroll(dx: Float, dy: Float) { exitFollowMode(); lastGestureAt.value = System.currentTimeMillis() }
+            override fun onFling(dx: Float, dy: Float) { exitFollowMode(); lastGestureAt.value = System.currentTimeMillis() }
+            override fun onDoubleTap(x: Float, y: Float) { exitFollowMode(); lastGestureAt.value = System.currentTimeMillis() }
+            override fun onSingleTap(x: Float, y: Float) { lastGestureAt.value = System.currentTimeMillis() }
+            override fun onLongPress(x: Float, y: Float) { lastGestureAt.value = System.currentTimeMillis() }
+            override fun onDown(x: Float, y: Float) { lastGestureAt.value = System.currentTimeMillis() }
             override fun onUp(x: Float, y: Float) {}
             override fun onMapStable() {}
         })
@@ -568,7 +570,15 @@ private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
         }
     }
     Box(modifier = Modifier.fillMaxSize()) {
-        AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
+        AndroidView(
+            factory = { mapView },
+            modifier = Modifier.fillMaxSize(),
+            onRelease = { view ->
+                // 从视图树摘除时确保与父容器解绑，避免下次 attach 抛
+                // "child already has a parent" / 多次 attach 状态错乱
+                (view.parent as? android.view.ViewGroup)?.removeView(view)
+            }
+        )
 
         // ---- 自绘"回到我的位置"按钮：屏幕右侧垂直居中（内置按钮在右下角会被底部面板遮挡） ----
         SmallFloatingActionButton(
@@ -608,6 +618,25 @@ private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
                 .align(Alignment.TopEnd)
                 .padding(top = 130.dp, end = 12.dp)
         )
+    }
+
+    // ---- 60 秒无操作 → 自动回到当前定位点（并开启跟随） ----
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(5_000) // 每 5 秒检查一次
+            val last = lastGestureAt.value
+            // 从未操作过 / 已在跟随中 / 无定位 → 跳过
+            if (last == 0L || followMode.value) continue
+            if (System.currentTimeMillis() - last >= 60_000) {
+                val target = blueDotLatLng.value
+                    ?: data.points.lastOrNull()?.let { LatLng(it.latitude, it.longitude) }
+                if (target != null) {
+                    followMode.value = true
+                    aMap.myLocationStyle = followStyle
+                    aMap.animateCamera(CameraUpdateFactory.changeLatLng(target))
+                }
+            }
+        }
     }
 
     // 轨迹点变化 → 只重画轨迹线（镜头不再自动移动，由定位按钮手动回中）

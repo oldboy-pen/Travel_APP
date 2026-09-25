@@ -206,7 +206,13 @@ private fun TrackPlaybackMapView(t: Track) {
         }
     }
     Box(modifier = Modifier.fillMaxSize()) {
-        AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
+        AndroidView(
+            factory = { mapView },
+            modifier = Modifier.fillMaxSize(),
+            onRelease = { view ->
+                (view.parent as? android.view.ViewGroup)?.removeView(view)
+            }
+        )
 
         // 图层切换：地图右上角
         com.example.myfirstapp.ui.components.MapLayerSwitcher(

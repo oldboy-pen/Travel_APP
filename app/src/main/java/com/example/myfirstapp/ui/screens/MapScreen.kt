@@ -184,7 +184,13 @@ private fun AMapView(state: MapUiState, onMapLongClick: (LatLng) -> Unit) {
         }
     }
 
-    AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
+    AndroidView(
+        factory = { mapView },
+        modifier = Modifier.fillMaxSize(),
+        onRelease = { view ->
+            (view.parent as? android.view.ViewGroup)?.removeView(view)
+        }
+    )
 
     // 初始化地图：蓝点连续定位 + 右下角定位按钮 + 长按设目的地
     LaunchedEffect(Unit) {
