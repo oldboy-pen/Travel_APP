@@ -6,17 +6,25 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.IosShare
+import androidx.compose.material.icons.filled.PersonOutline
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.myfirstapp.data.user.UserAccount
+import com.example.myfirstapp.data.user.UserViewModel
 import com.example.myfirstapp.track.GeoUtils
 import com.example.myfirstapp.track.Track
 import com.example.myfirstapp.track.TrackFileFormat
@@ -27,17 +35,22 @@ import java.util.Date
 import java.util.Locale
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import androidx.compose.foundation.background
+
 
 /**
  * 轨迹库页（两步路"我的轨迹"）：
  * - 本地历史轨迹列表，点击查看详情/回放
  * - 支持从文件导入轨迹（GPX / KML / KMZ，自动识别格式）
  * - 支持导出：单条（GPX / KML 轨迹 / KML 路径 / KMZ，分享或另存）+ 全部打包导出
+ * - 顶部账号卡片：未登录显示「登录/注册」入口，已登录显示昵称与退出
  */
 @Composable
-fun TrackHistoryScreen(onOpenTrack: (String) -> Unit) {
+fun TrackHistoryScreen(onOpenTrack: (String) -> Unit, onOpenAuth: () -> Unit) {
     val context = LocalContext.current
     val repo = remember { TrackRepository.get(context) }
+    val userVm: UserViewModel = viewModel()
+    val user by userVm.currentUser.collectAsState()
     var tracks by remember { mutableStateOf(repo.list()) }
     var message by remember { mutableStateOf<String?>(null) }
 
@@ -146,56 +159,141 @@ fun TrackHistoryScreen(onOpenTrack: (String) -> Unit) {
         )
     }
 
-    if (tracks.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.Route, null, Modifier.size(64.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(12.dp))
-                Text("还没有轨迹记录\n去「运动」页开始第一条，或导入轨迹",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(16.dp))
-                OutlinedButton(onClick = {
-                    importLauncher.launch(arrayOf("*/*"))
-                }) {
-                    Icon(Icons.Default.IosShare, null, Modifier.size(18.dp))
-                    Text("  导入轨迹")
-                }
+    Column(Modifier.fillMaxSize()) {
+        UserCard(
+            user = user,
+            onOpenAuth = onOpenAuth,
+            onLogout = {
+                userVm.logout()
+                message = "已退出登录"
             }
-        }
-    } else {
-        LazyColumn(
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = { importLauncher.launch(arrayOf("*/*")) },
-                        modifier = Modifier.weight(1f)
-                    ) {
+        )
+
+        if (tracks.isEmpty()) {
+            Box(
+                Modifier.fillMaxWidth().weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        Icons.Default.Route, null, Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "还没有轨迹记录\n去「运动」页开始第一条，或导入轨迹",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    OutlinedButton(onClick = {
+                        importLauncher.launch(arrayOf("*/*"))
+                    }) {
                         Icon(Icons.Default.IosShare, null, Modifier.size(18.dp))
                         Text("  导入轨迹")
                     }
-                    OutlinedButton(
-                        onClick = { exportAllAsZip() },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.Archive, null, Modifier.size(18.dp))
-                        Text("  导出全部")
-                    }
                 }
-                Spacer(Modifier.height(8.dp))
             }
-            items(tracks, key = { it.id }) { track ->
-                TrackCard(
-                    track,
-                    onClick = { onOpenTrack(track.id) },
-                    onExport = { exportingTrack = track }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { importLauncher.launch(arrayOf("*/*")) },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.IosShare, null, Modifier.size(18.dp))
+                            Text("  导入轨迹")
+                        }
+                        OutlinedButton(
+                            onClick = { exportAllAsZip() },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.Archive, null, Modifier.size(18.dp))
+                            Text("  导出全部")
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+                items(tracks, key = { it.id }) { track ->
+                    TrackCard(
+                        track,
+                        onClick = { onOpenTrack(track.id) },
+                        onExport = { exportingTrack = track }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 顶部账号卡片：未登录 → 登录/注册入口；已登录 → 昵称 + 退出登录 */
+@Composable
+private fun UserCard(user: UserAccount?, onOpenAuth: () -> Unit, onLogout: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center
+            ) {
+                if (user == null) {
+                    Icon(
+                        Icons.Default.PersonOutline,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    Text(
+                        user.nickname.take(1),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+            }
+
+            Spacer(Modifier.width(14.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = user?.nickname ?: "未登录",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
                 )
+                Text(
+                    text = if (user == null) "点击登录或注册账号" else "@${user.username} · 注册于 ${formatDate(user.createdAt)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            if (user == null) {
+                Button(onClick = onOpenAuth, shape = RoundedCornerShape(12.dp)) {
+                    Text("登录/注册")
+                }
+            } else {
+                OutlinedButton(onClick = onLogout, shape = RoundedCornerShape(12.dp)) {
+                    Text("退出")
+                }
             }
         }
     }
@@ -245,3 +343,6 @@ private fun TrackCard(track: Track, onClick: () -> Unit, onExport: () -> Unit) {
         )
     }
 }
+
+private fun formatDate(time: Long): String =
+    if (time > 0) SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).format(Date(time)) else "未知"

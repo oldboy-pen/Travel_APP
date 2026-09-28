@@ -26,3 +26,5 @@ Thumbs.db
 
 # 助手临时目录
 .trash/
+# 助手项目数据（会话记忆等，不入库）
+.workbuddy/

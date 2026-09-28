@@ -1,5 +1,6 @@
 package com.example.myfirstapp.ui.components
 
+import android.widget.Toast
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -30,86 +31,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.amap.api.maps.AMap
 import com.example.myfirstapp.R
-import com.example.myfirstapp.mapsources.CustomTileProvider
+import com.example.myfirstapp.map.MapEngineKeys
 import com.example.myfirstapp.mapsources.MapSource
 import com.example.myfirstapp.mapsources.MapSourceStore
-
-/**
- * 持有一张地图当前的全部瓦片图层，切换图源时整体替换。
- */
-class MapOverlaysHolder {
-    var baseOverlay: com.amap.api.maps.model.TileOverlay? = null
-    var roadOverlay: com.amap.api.maps.model.TileOverlay? = null
-    var extraOverlay: com.amap.api.maps.model.TileOverlay? = null
-
-    fun clearAll() {
-        baseOverlay?.remove(); baseOverlay = null
-        roadOverlay?.remove(); roadOverlay = null
-        extraOverlay?.remove(); extraOverlay = null
-    }
-}
-
-/**
- * 应用当前图源配置（底图 + 叠加层）到高德地图实例。
- * 幂等：每次先移除全部旧瓦片图层再重建，各地图页在图源变化或页面重入时调用。
- *
- * 底图策略：
- * - amap.* 走高德 SDK 原生底图（矢量/卫星/夜景/卫星路网）；
- * - 其他图源（腾讯/百度/天地图/自定义）：高德矢量打底做兜底（瓦片加载间隙不露白），
- *   不透明第三方瓦片覆盖其上；WGS84/BD09 图源由 CustomTileProvider 逐像素纠偏。
- */
-fun applyMapSources(aMap: AMap, holder: MapOverlaysHolder) {
-    holder.clearAll()
-    val base = MapSourceStore.activeBase()
-    when (base.id) {
-        "amap.satellite" -> aMap.mapType = AMap.MAP_TYPE_SATELLITE
-        "amap.night" -> aMap.mapType = AMap.MAP_TYPE_NIGHT
-        "amap.sat_road" -> {
-            // 卫星底图 + 高德官方路网透明层（style=7：白线道路+地名标注，无坐标系偏差）
-            aMap.mapType = AMap.MAP_TYPE_SATELLITE
-            holder.roadOverlay = aMap.addTileOverlay(
-                com.amap.api.maps.model.TileOverlayOptions()
-                    .tileProvider(object : com.amap.api.maps.model.UrlTileProvider(256, 256) {
-                        override fun getTileUrl(x: Int, y: Int, zoom: Int): java.net.URL? =
-                            runCatching {
-                                java.net.URL("https://wprd0$((x + y) % 4).is.autonavi.com/appmaptile?style=7&x=$x&y=$y&z=$zoom")
-                            }.getOrNull()
-                    })
-                    .zIndex(0f)
-                    .diskCacheEnabled(true)
-                    .memCacheSize(10 * 1024 * 1024)
-            )
-        }
-        else -> {
-            // 高德矢量 / 第三方瓦片底图
-            aMap.mapType = AMap.MAP_TYPE_NORMAL
-            if (base.urlTemplate.isNotBlank()) {
-                holder.baseOverlay = aMap.addTileOverlay(
-                    com.amap.api.maps.model.TileOverlayOptions()
-                        .tileProvider(CustomTileProvider(base) { MapSourceStore.tiandituKey })
-                        .zIndex(0f)
-                        .diskCacheEnabled(true)
-                        .memCacheSize(20 * 1024 * 1024)
-                )
-            }
-        }
-    }
-
-    // 叠加层（半透明标注/等高线等）
-    MapSourceStore.activeOverlay()?.let { ov ->
-        if (ov.urlTemplate.isNotBlank()) {
-            holder.extraOverlay = aMap.addTileOverlay(
-                com.amap.api.maps.model.TileOverlayOptions()
-                    .tileProvider(CustomTileProvider(ov) { MapSourceStore.tiandituKey })
-                    .zIndex(1f)
-                    .diskCacheEnabled(true)
-                    .memCacheSize(10 * 1024 * 1024)
-            )
-        }
-    }
-}
 
 /** 内置图源 → 预览缩略图（真实瓦片，成都/四姑娘山一带 z12） */
 @DrawableRes
@@ -120,6 +45,8 @@ fun previewOf(source: MapSource): Int? = when (source.id) {
     "amap.night" -> R.drawable.pv_amap_night
     "tencent.street" -> R.drawable.pv_tencent_street
     "tencent.satellite" -> R.drawable.pv_tencent_sat
+    // tencent.dark 暂未准备预览图，走下面的图标占位（想补的话按同一规则
+    // 截一张 z12 缩略图放到 res/drawable-nodpi/ 再加一行映射即可）
     "baidu.street" -> R.drawable.pv_baidu_street
     "baidu.satellite" -> R.drawable.pv_baidu_sat
     "tdt.ter", "opentopomap" -> R.drawable.pv_hillshade
@@ -130,6 +57,12 @@ fun previewOf(source: MapSource): Int? = when (source.id) {
  * 图层切换控件：右上角小按钮展开「缩略图+名称」卡片网格（图上文下），
  * 分底图/叠加层两组，底部图源管理入口。
  * 选择状态存 MapSourceStore（全局共享、持久化，三个地图页一致）。
+ *
+ * 选中某张图后，地图页面会自动切到它对应的原生 SDK 渲染（见 map 包下的引擎抽象）：
+ *   amap.* → AMapEngine，tencent.* → TencentMapEngine，baidu.* → BaiduMapEngine，
+ *   天地图/自定义瓦片 → 仍然用 AMapEngine + CustomTileProvider 叠加渲染。
+ *
+ * 选择时有一层 Key 保护：该厂商 Key 没配置就提示并要求先配置，避免用户只看到白屏。
  *
  * @param panelMaxHeight 面板内容区最大高度。内容超过即在内部滚动，
  *                       避免整块面板把"关闭"按钮顶出屏幕（格子多了原本会超出一屏）。
@@ -199,7 +132,25 @@ fun MapLayerSwitcher(
     }
 
     // 首次进入也确保 store 已加载（页面未调用 ensureLoaded 时兜底）
-    LaunchedEffect(Unit) { MapSourceStore.ensureLoaded(context) }
+    LaunchedEffect(Unit) {
+        MapSourceStore.ensureLoaded(context)
+        MapEngineKeys.init(context)
+    }
+}
+
+/**
+ * 选中的底图对应的厂商没配 Key 时拒绝切换并提示。
+ * （否则地图区会是一片空白 + 各家「未鉴权」水印，用户不知道发生了什么）
+ */
+private fun trySelectBase(context: android.content.Context, id: String?) {
+    id ?: return
+    val source = MapSourceStore.findSource(id) ?: return
+    if (!MapEngineKeys.isConfigured(source.engineKind)) {
+        Toast.makeText(context, MapEngineKeys.missingHint(source.engineKind), Toast.LENGTH_LONG)
+            .show()
+        return
+    }
+    MapSourceStore.selectBase(id)
 }
 
 /**
@@ -213,6 +164,7 @@ fun LayerPanelContent(
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     Column(modifier = modifier) {
         // ---- 标题栏：标题 + 关闭（固定，不随内容滚动）----
         Row(
@@ -255,7 +207,7 @@ fun LayerPanelContent(
             SourceGrid(
                 sources = MapSourceStore.allBases(),
                 selectedId = MapSourceStore.activeBaseId
-            ) { id -> id?.let { MapSourceStore.selectBase(it) } }
+            ) { id -> trySelectBase(context, id) }
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             SectionLabel("叠加层")
@@ -370,8 +322,10 @@ private fun SourceCard(
                     )
                 }
             }
-            // 需 Key 提示角标
-            if (source?.needsKey == true && MapSourceStore.tiandituKey.isBlank()) {
+            // 需 Key 提示角标：天地图没填 Key，或这张图对应的厂商 Key 还是占位符
+            if (source?.needsKey == true && MapSourceStore.tiandituKey.isBlank() ||
+                source?.let { !MapEngineKeys.isConfigured(it.engineKind) } == true
+            ) {
                 Text(
                     "需Key",
                     fontSize = 9.sp,

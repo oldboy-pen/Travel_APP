@@ -9,6 +9,12 @@ navigationCompose = "2.8.1"
 amapMap3d = "9.8.3"       # 高德 3D 地图 SDK（已内置定位功能）
 amapSearch = "9.7.1"      # 高德搜索/路径规划 SDK（Maven Central 最新版）
 zxingEmbedded = "4.3.0"   # 二维码扫描/生成（扫码添加图源用）
+# ---- 多地图厂商原生 SDK ----
+# 腾讯：地图主包 + 基础库（LatLng 等基础类在 foundation 里，缺了编译不过）
+tencentMapSdk = "6.13.0.260731.bb0666d5.209828299"
+tencentFoundation = "0.9.1.6875646"
+# 百度：地图组件（会传递依赖 com.baidu.lbsyun:base，SDKInitializer 在 base 里）
+baiduMapSdk = "8.2.0.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -28,6 +34,12 @@ zxing-embedded = { group = "com.journeyapps", name = "zxing-android-embedded", v
 zxing-core = { group = "com.google.zxing", name = "core", version = "3.4.1" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
 androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
+
+# 腾讯地图（GCJ-02，与高德同坐标系）
+tencent-map-sdk = { group = "com.tencent.map", name = "tencent-map-vector-sdk", version.ref = "tencentMapSdk" }
+tencent-map-foundation = { group = "com.tencent.openmap", name = "foundation", version.ref = "tencentFoundation" }
+# 百度地图（BD-09，App 内统一用 GCJ-02，由 BaiduMapEngine 负责转换）
+baidu-map-sdk = { group = "com.baidu.lbsyun", name = "BaiduMapSDK_Map", version.ref = "baiduMapSdk" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

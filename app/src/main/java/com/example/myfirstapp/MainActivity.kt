@@ -17,13 +17,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.example.myfirstapp.ui.navigation.AppRoot
 import com.example.myfirstapp.ui.theme.MyFirstAppTheme
-import com.example.myfirstapp.utils.AMapPrivacy
+import com.example.myfirstapp.utils.MapSdkPrivacy
 
 /**
  * App 入口 Activity
  *
- * 启动流程：隐私弹窗（首次）→ 同意后初始化高德SDK → 进入主界面
- * （高德合规要求：必须先获用户同意，SDK 才能初始化）
+ * 启动流程：隐私弹窗（首次）→ 同意后初始化高德/腾讯/百度三家SDK → 进入主界面
+ * （三家都要求：必须先获用户同意，SDK 才能初始化）
  */
 class MainActivity : ComponentActivity() {
 
@@ -33,7 +33,7 @@ class MainActivity : ComponentActivity() {
 
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val agreed = prefs.getBoolean(KEY_PRIVACY, false)
-        if (agreed) AMapPrivacy.init(this)  // 之前已同意过，直接初始化
+        if (agreed) MapSdkPrivacy.init(this)  // 之前已同意过，直接初始化三家 SDK
 
         setContent {
             MyFirstAppTheme {
@@ -43,7 +43,7 @@ class MainActivity : ComponentActivity() {
                 } else {
                     PrivacyDialog(onAgree = {
                         prefs.edit().putBoolean(KEY_PRIVACY, true).apply()
-                        AMapPrivacy.init(this)
+                        MapSdkPrivacy.init(this)
                         isAgreed = true
                     })
                 }

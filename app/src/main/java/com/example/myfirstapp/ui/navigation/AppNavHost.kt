@@ -22,8 +22,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.myfirstapp.ui.screens.HomeScreen
+import com.example.myfirstapp.ui.screens.LoginScreen
 import com.example.myfirstapp.ui.screens.MapScreen
 import com.example.myfirstapp.ui.screens.RecordScreen
+import com.example.myfirstapp.ui.screens.RegisterScreen
 import com.example.myfirstapp.ui.screens.TrackDetailScreen
 import com.example.myfirstapp.ui.screens.TrackHistoryScreen
 
@@ -83,7 +85,25 @@ fun AppRoot() {
                 RecordScreen(onTrackSaved = { id -> navController.navigateToTrackDetail(id) })
             }
             composable("history") {
-                TrackHistoryScreen(onOpenTrack = { id -> navController.navigateToTrackDetail(id) })
+                TrackHistoryScreen(
+                    onOpenTrack = { id -> navController.navigateToTrackDetail(id) },
+                    onOpenAuth = { navController.navigate("login") }
+                )
+            }
+            composable("login") {
+                LoginScreen(
+                    onBack = { navController.popBackStack() },
+                    onSuccess = { navController.popBackStack() },   // 登录成功退回「我的」
+                    onGoRegister = { navController.navigate("register") }
+                )
+            }
+            composable("register") {
+                RegisterScreen(
+                    onBack = { navController.popBackStack() },
+                    // 注册入口固定是 我的 → 登录 → 注册，成功就把这两页一起弹掉
+                    onSuccess = { navController.popBackStack("login", inclusive = true) },
+                    onGoLogin = { navController.popBackStack() }
+                )
             }
             composable("track/{id}") { entry ->
                 TrackDetailScreen(

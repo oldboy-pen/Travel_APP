@@ -1,10 +1,34 @@
 package com.example.myfirstapp.mapsources
 
+import com.example.myfirstapp.map.MapEngineKind
+import com.example.myfirstapp.map.MapEngineKeys
+
+/**
+ * 用厂商原生 SDK 渲染的地图类型。
+ *
+ * @param kind 由哪家 SDK 负责渲染
+ * @param code 传给对应引擎的样式标识（各引擎内部 switch）
+ */
+enum class NativeMapType(val kind: MapEngineKind, val code: String) {
+    AMAP_NORMAL(MapEngineKind.AMAP, "normal"),
+    AMAP_SATELLITE(MapEngineKind.AMAP, "satellite"),
+    AMAP_NIGHT(MapEngineKind.AMAP, "night"),
+    AMAP_SAT_ROAD(MapEngineKind.AMAP, "sat_road"),
+    TENCENT_NORMAL(MapEngineKind.TENCENT, "normal"),
+    TENCENT_SATELLITE(MapEngineKind.TENCENT, "satellite"),
+    TENCENT_DARK(MapEngineKind.TENCENT, "dark"),
+    BAIDU_NORMAL(MapEngineKind.BAIDU, "normal"),
+    BAIDU_SATELLITE(MapEngineKind.BAIDU, "satellite")
+}
+
 /**
  * 瓦片图源坐标系。
  * - GCJ02：高德/腾讯，与 App 地图（高德）同坐标系，直接叠加无偏差；
  * - WGS84：天地图/OpenTopoMap 等，需逐像素 GCJ→WGS 反算重投影；
  * - BD09：百度，需 GCJ→BD09→百度墨卡托逐像素重投影。
+ *
+ * 注意：本枚举只对【瓦片叠加】有意义；走厂商原生 SDK 的图源（nativeType != null）
+ * 不需要 CRS 换算 —— SDK 渲染引擎自己处理坐标系。
  */
 enum class TileCrs(val label: String) {
     GCJ02("GCJ-02（高德/腾讯，无偏差）"),
@@ -28,11 +52,13 @@ enum class TileCrs(val label: String) {
  * @param needsKey 模板含 {tk}，需在图源管理里配置天地图 Key
  * @param builtin true=内置图源（不可编辑/删除）
  * @param attribution 版权署名，显示在地图左下角「当前图源」标签上（第三方瓦片合规要求）
+ * @param nativeType 非空=用该厂商的原生 SDK 渲染（此时 urlTemplate 留空，不再抓瓦片）；
+ *                   为空且 urlTemplate 非空=瓦片图源，叠加在高德矢量底图之上（旧路径）
  */
 data class MapSource(
     val id: String,
     val name: String,
-    val urlTemplate: String,
+    val urlTemplate: String = "",
     val subdomains: String = "",
     val crs: TileCrs = TileCrs.GCJ02,
     val minZoom: Int = 3,
@@ -40,44 +66,55 @@ data class MapSource(
     val isOverlay: Boolean = false,
     val needsKey: Boolean = false,
     val builtin: Boolean = false,
-    val attribution: String = ""
+    val attribution: String = "",
+    val nativeType: NativeMapType? = null
 ) {
+    /** 这张图由哪家 SDK 渲染；瓦片图源没有原生 SDK，统一回落高德容器 */
+    val engineKind: MapEngineKind get() = nativeType?.kind ?: MapEngineKind.AMAP
+
+    /** 是否是"抓瓦片叠加"的图源（没有原生 SDK 可走） */
+    val isTileSource: Boolean get() = nativeType == null && urlTemplate.isNotBlank()
+
     companion object {
-        /** 内置图源。id 为 amap.* 的走高德 SDK 原生底图，不下载瓦片 */
+        /** 内置图源。nativeType 非空=走该厂商原生 SDK；空=瓦片叠加在高德底图上 */
         val BUILTINS: List<MapSource> = listOf(
-            MapSource("amap.normal", "高德矢量", "", builtin = true, attribution = "© 高德地图"),
-            MapSource("amap.satellite", "高德卫星", "", builtin = true, attribution = "© 高德地图"),
-            MapSource("amap.night", "高德夜景", "", builtin = true, attribution = "© 高德地图"),
+            MapSource(
+                "amap.normal", "高德矢量", "", builtin = true,
+                attribution = "© 高德地图", nativeType = NativeMapType.AMAP_NORMAL
+            ),
+            MapSource(
+                "amap.satellite", "高德卫星", "", builtin = true,
+                attribution = "© 高德地图", nativeType = NativeMapType.AMAP_SATELLITE
+            ),
+            MapSource(
+                "amap.night", "高德夜景", "", builtin = true,
+                attribution = "© 高德地图", nativeType = NativeMapType.AMAP_NIGHT
+            ),
             MapSource(
                 "amap.sat_road", "高德卫星路网", "", builtin = true,
-                attribution = "© 高德地图",
-                isOverlay = false  // 特殊组合：卫星底图+路网标注，applyMapSources 特殊处理
+                attribution = "© 高德地图", nativeType = NativeMapType.AMAP_SAT_ROAD
+            ),
+            // ---- 腾讯：改用腾讯地图 SDK 原生渲染，不再抓 rt{s}.map.gtimg.com 瓦片 ----
+            MapSource(
+                "tencent.street", "腾讯街道", "", builtin = true,
+                attribution = "© 腾讯地图", nativeType = NativeMapType.TENCENT_NORMAL
             ),
             MapSource(
-                "tencent.street", "腾讯街道",
-                "https://rt{s}.map.gtimg.com/realtimerender?z={z}&x={x}&y={-y}&style=0&scene=0",
-                subdomains = "0123", crs = TileCrs.GCJ02, minZoom = 3, maxZoom = 19, builtin = true,
-                attribution = "© 腾讯地图"
+                "tencent.satellite", "腾讯卫星", "", builtin = true,
+                attribution = "© 腾讯地图", nativeType = NativeMapType.TENCENT_SATELLITE
             ),
             MapSource(
-                "tencent.satellite", "腾讯卫星",
-                "https://p{s}.map.gtimg.com/sateTiles/{z}/{sx}/{sy}/{x}_{-y}.jpg",
-                subdomains = "0123", crs = TileCrs.GCJ02, minZoom = 3, maxZoom = 19, builtin = true,
-                attribution = "© 腾讯地图"
+                "tencent.dark", "腾讯暗色", "", builtin = true,
+                attribution = "© 腾讯地图", nativeType = NativeMapType.TENCENT_DARK
+            ),
+            // ---- 百度：改用百度地图 SDK 原生渲染，不再抓 bdimg 瓦片 ----
+            MapSource(
+                "baidu.street", "百度街道", "", builtin = true,
+                attribution = "© 百度地图", nativeType = NativeMapType.BAIDU_NORMAL
             ),
             MapSource(
-                "baidu.street", "百度街道",
-                // 2024 起官方现行瓦片域名（旧 online*.map.bdimg.com 链路不稳定，部分网络直接 RST）
-                "https://maponline{s}.bdimg.com/tile/?qt=tile&x={x}&y={y}&z={z}&styles=pl&scaler=1&p=1",
-                subdomains = "0123", crs = TileCrs.BD09, minZoom = 4, maxZoom = 18, builtin = true,
-                attribution = "© 百度地图"
-            ),
-            MapSource(
-                "baidu.satellite", "百度卫星",
-                // shangetu 老接口实测仍可用；官方新 starpic 接口参数未公开，暂不切换
-                "https://shangetu{s}.map.bdimg.com/it/u=x={x};y={y};z={z};v=009;type=sate&fm=46",
-                subdomains = "0123", crs = TileCrs.BD09, minZoom = 4, maxZoom = 18, builtin = true,
-                attribution = "© 百度地图"
+                "baidu.satellite", "百度卫星", "", builtin = true,
+                attribution = "© 百度地图", nativeType = NativeMapType.BAIDU_SATELLITE
             ),
             MapSource(
                 "tdt.vec", "天地图矢量",

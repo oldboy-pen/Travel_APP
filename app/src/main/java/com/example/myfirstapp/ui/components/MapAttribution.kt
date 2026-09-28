@@ -31,17 +31,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.myfirstapp.map.MapEngineKeys
 import com.example.myfirstapp.mapsources.MapSourceStore
 
 /**
  * 当前图源署名标签。
  *
- * 背景：地图引擎始终是高德 SDK（第三方瓦片只是叠在高德矢量底图之上），
- * 左下角那枚「高德地图」logo 由 SDK 绘制 —— 遮挡/隐藏它违反高德合规要求，
- * 而且叠加了腾讯/百度/OSM 瓦片后只看到"高德地图"会误导用户。
- *
- * 解决：在左下角（或底部面板内）追加这枚标签，实时显示真正的底图 + 叠加层归属，
- * 点击还能直接打开图层选择面板。
+ * 背景：以前地图容器永远是高德 SDK（第三方图源只是叠在高德矢量底图之上），
+ * 左下角那枚「高德地图」logo 由 SDK 绘制，只显示"高德地图"会误导用户。
+ * 现在切到腾讯/百度图源时，整个地图由对应厂商的原生 SDK 渲染，
+ * logo 是厂商自己画的（合规上也不能遮挡或隐藏），这枚标签依然用来
+ * 明确显示真正的底图 + 叠加层归属，点击还能直接打开图层选择面板。
  *
  * @param floating true=悬浮在地图上的胶囊（半透明白底）；false=嵌在底部面板里（无背景）
  */
@@ -55,7 +55,10 @@ fun MapAttribution(
     var expanded by remember { mutableStateOf(false) }
     var showManager by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) { MapSourceStore.ensureLoaded(context) }
+    LaunchedEffect(Unit) {
+        MapSourceStore.ensureLoaded(context)
+        MapEngineKeys.init(context)
+    }
     // revision 变化时重组（切图源 / 增删自定义源）
     MapSourceStore.revision
 

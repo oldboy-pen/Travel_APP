@@ -23,7 +23,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,22 +32,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.amap.api.maps.CameraUpdateFactory
-import com.amap.api.maps.MapView
 import com.amap.api.maps.model.LatLng
-import com.amap.api.maps.model.LatLngBounds
-import com.amap.api.maps.model.MarkerOptions
-import com.amap.api.maps.model.MyLocationStyle
-import com.amap.api.maps.model.PolylineOptions
-import com.example.myfirstapp.data.MapUiState
 import com.example.myfirstapp.data.MapViewModel
+import com.example.myfirstapp.map.GeoPoint
+import com.example.myfirstapp.map.MapSurface
+import com.example.myfirstapp.map.MapSurfaceState
+import com.example.myfirstapp.map.MapUiSettings
+import com.example.myfirstapp.map.rememberMapSurfaceState
+import com.example.myfirstapp.ui.components.MapLayerSwitcher
 
 /**
  * 地图页：地图显示 + 蓝点定位 + 长按选目的地 + 驾车路线规划 + 一键导航
@@ -58,11 +52,18 @@ import com.example.myfirstapp.data.MapViewModel
  * 2. 长按地图任意位置 → 打一个目的地标记
  * 3. 点"规划驾车路线" → 画出蓝色路线，显示里程与时间
  * 4. 点"开始导航" → 拉起高德地图App（未安装则打开网页版）
+ *
+ * 地图本身由 [MapSurface] 接管：当前底图选到腾讯/百度时，整张地图就是那家
+ * 厂商原生 SDK 渲染出来的（见 map 包）。本页所有的画点/画线/移动镜头操作
+ * 都走 [MapSurfaceState.engine]，不再依赖任何一家地图 SDK 的类。
  */
 @Composable
 fun MapScreen(viewModel: MapViewModel = viewModel()) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val mapState = rememberMapSurfaceState("map")
+    // 首次拿到定位时把镜头拉到身边一次，之后不再打扰用户手动拖的位置
+    var autoCentered by remember { mutableStateOf(false) }
 
     // ---- 运行时定位权限申请（Android 6.0+ 必须） ----
     var hasLocationPermission by remember {
@@ -98,7 +99,53 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        AMapView(state = state, onMapLongClick = viewModel::setDestination)
+        // ---- 地图就绪后：开蓝点（跟随模式） ----
+        LaunchedEffect(mapState.engine) {
+            mapState.engine?.setMyLocationEnabled(true, follow = true)
+        }
+
+        // ---- 每次拿到新定位都喂给地图（百度引擎必须靠这个才有蓝点）----
+        // 只有第一次定位把镜头拉到身边，之后不再打扰用户手动拖动的位置
+        LaunchedEffect(mapState.engine, state.myLocation) {
+            val engine = mapState.engine ?: return@LaunchedEffect
+            val loc = state.myLocation ?: return@LaunchedEffect
+            val p = GeoPoint(loc.latitude, loc.longitude)
+            engine.updateDeviceLocation(p, 0f, 0f)
+            if (autoCentered.not()) {
+                autoCentered = true
+                engine.moveCamera(p, 16f)
+            }
+        }
+
+        // ---- 目的地 / 路线变化 → 重绘覆盖物 ----
+        LaunchedEffect(mapState.engine, state.destination, state.routePoints) {
+            val engine = mapState.engine ?: return@LaunchedEffect
+            engine.clearOverlays()   // 只清自己画过的东西，不动底图瓦片层
+            state.destination?.let { dest ->
+                engine.addMarker(GeoPoint(dest.latitude, dest.longitude), title = "目的地")
+            }
+            if (state.routePoints.isNotEmpty()) {
+                val route = state.routePoints.map { GeoPoint(it.latitude, it.longitude) }
+                engine.addPolyline(route, widthPx = 20f, colorArgb = 0xFF1E88E5.toInt())
+                // 让镜头自动框住整条路线
+                engine.fitBounds(route, paddingPx = 64, animate = true)
+            }
+        }
+
+        MapSurface(
+            state = mapState,
+            pageKey = "map",
+            modifier = Modifier.fillMaxSize(),
+            uiSettings = MapUiSettings(myLocationButton = true),
+            onLongClick = { point -> viewModel.setDestination(point.toLatLng()) },
+            overlay = {
+                MapLayerSwitcher(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 10.dp, end = 10.dp)
+                )
+            }
+        )
 
         // ---- 底部信息 & 操作面板 ----
         Card(
@@ -156,103 +203,8 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
     }
 }
 
-/**
- * 把高德 MapView（传统 View 体系）嵌入 Compose：
- * - remember 保存 MapView 实例，避免重组时重建
- * - DisposableEffect 绑定生命周期（MapView 必须收到 onCreate/onResume/onPause/onDestroy）
- * - 状态变化通过 LaunchedEffect 转换为地图上的覆盖物
- */
-@Composable
-private fun AMapView(state: MapUiState, onMapLongClick: (LatLng) -> Unit) {
-    val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-    // 池化复用：切 Tab 不销毁地图（高德 SDK 频繁销毁-重建会 native 崩溃）
-    val mapView = remember { com.example.myfirstapp.ui.components.AMapViewPool.get("map", context) }
-    val aMap = remember { mapView.map }
-    // 图层/图源状态（全局共享，见 MapSourceStore）
-    val overlaysHolder = remember { com.example.myfirstapp.ui.components.MapOverlaysHolder() }
-
-    // 生命周期绑定
-    DisposableEffect(lifecycleOwner) {
-        com.example.myfirstapp.ui.components.AMapViewPool.ensureCreated("map", context)
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_RESUME -> mapView.onResume()
-                Lifecycle.Event.ON_PAUSE -> mapView.onPause()
-                Lifecycle.Event.ON_DESTROY ->
-                    com.example.myfirstapp.ui.components.AMapViewPool.destroy("map")
-                else -> {}
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            // 切走页面：只解除监听 + pause，不销毁地图（实例留在池中复用）
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            mapView.onPause()
-        }
-    }
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        AndroidView(
-            factory = { mapView },
-            modifier = Modifier.fillMaxSize(),
-            onRelease = { view ->
-                (view.parent as? android.view.ViewGroup)?.removeView(view)
-            }
-        )
-
-        // 图层/图源切换：地图右上角
-        com.example.myfirstapp.ui.components.MapLayerSwitcher(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 10.dp, end = 10.dp)
-        )
-    }
-
-    // ---- 图源配置变化（或首次进入）→ 应用底图/叠加层 ----
-    LaunchedEffect(com.example.myfirstapp.mapsources.MapSourceStore.revision) {
-        com.example.myfirstapp.mapsources.MapSourceStore.ensureLoaded(context)
-        com.example.myfirstapp.ui.components.applyMapSources(aMap, overlaysHolder)
-    }
-
-    // 初始化地图：蓝点连续定位 + 右下角定位按钮 + 长按设目的地
-    LaunchedEffect(Unit) {
-        aMap.apply {
-            uiSettings.isZoomControlsEnabled = false
-            uiSettings.isMyLocationButtonEnabled = true
-            myLocationStyle = MyLocationStyle().apply {
-                myLocationType(MyLocationStyle.LOCATION_TYPE_FOLLOW) // 跟随模式
-                interval(3000)
-                showMyLocation(true)
-            }
-            isMyLocationEnabled = true
-            setOnMapLongClickListener { onMapLongClick(it) }
-        }
-    }
-
-    // 目的地 / 路线变化 → 重绘地图覆盖物
-    LaunchedEffect(state.destination, state.routePoints) {
-        aMap.clear()  // 清除旧 Marker 和 Polyline（蓝点不受影响）
-        // clear() 会连瓦片图层一起清掉，需重新应用当前图源
-        com.example.myfirstapp.ui.components.applyMapSources(aMap, overlaysHolder)
-        state.destination?.let {
-            aMap.addMarker(MarkerOptions().position(it).title("目的地"))
-        }
-        if (state.routePoints.isNotEmpty()) {
-            aMap.addPolyline(
-                PolylineOptions()
-                    .addAll(state.routePoints)
-                    .width(20f)
-                    .color(0xFF1E88E5.toInt())
-            )
-            // 让镜头自动框住整条路线
-            val bounds = LatLngBounds.builder().apply {
-                state.routePoints.forEach { include(it) }
-            }.build()
-            aMap.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 64))
-        }
-    }
-}
+/** GeoPoint → 高德 LatLng：ViewModel 的定位/路径规划仍基于高德 SDK，需要在边界上转一手 */
+private fun GeoPoint.toLatLng(): LatLng = LatLng(latitude, longitude)
 
 /** 一键导航：优先拉起高德地图App（驾车），未安装则打开网页版 */
 private fun startNavi(context: Context, dest: LatLng) {

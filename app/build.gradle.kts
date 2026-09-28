@@ -14,6 +14,13 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+
+        // 三个地图 SDK 都带多架构 so，不过滤的话 APK 会到 200MB+。
+        // arm64-v8a / armeabi-v7a 覆盖全部真机；x86_64 是给 Android 模拟器用的，
+        // 出正式包想再省 ~30MB 就删掉它（删了 x86 模拟器装不上，但真机不受影响）。
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
     }
 
     buildTypes {
@@ -65,6 +72,13 @@ dependencies {
     // 高德地图：3D 地图 SDK（v5.0.0 起已内置定位功能，无需再单独引入定位 SDK）+ 路径规划
     implementation(libs.amap.map3d)
     implementation(libs.amap.search)
+
+    // 腾讯地图（原生引擎，map.TencentMapEngine 用）
+    implementation(libs.tencent.map.sdk)
+    implementation(libs.tencent.map.foundation)
+
+    // 百度地图（原生引擎，map.BaiduMapEngine 用；会传递依赖 com.baidu.lbsyun:base）
+    implementation(libs.baidu.map.sdk)
 
     // 二维码：扫码添加图源（embedded 内置 CaptureActivity）+ 生成分享二维码
     implementation(libs.zxing.embedded)

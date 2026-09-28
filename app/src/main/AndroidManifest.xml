@@ -37,10 +37,19 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MyFirstApp">
 
-        <!-- ★ 高德开放平台 Key：替换成你自己的！ -->
+        <!-- ★ 地图厂商 Key：替换成你自己申请的！三处都必须改，否则对应图源白屏/水印「鉴权失败」 -->
+        <!-- 高德开放平台 https://console.amap.com/dev/key/app -->
         <meta-data
             android:name="com.amap.api.v2.apikey"
             android:value="8844b9b23ba616c86e95e7d45b1d31a8" />
+        <!-- 腾讯位置服务 https://lbs.qq.com/dev/console/application/mine -->
+        <meta-data
+            android:name="TencentMapSDK"
+            android:value="YOUR_TENCENT_MAP_KEY" />
+        <!-- 百度地图开放平台 https://lbsyun.baidu.com/apiconsole/key#/home -->
+        <meta-data
+            android:name="com.baidu.lbsapi.API_KEY"
+            android:value="YOUR_BAIDU_MAP_KEY" />
 
         <!-- 高德定位 SDK 的后台服务 -->
         <service android:name="com.amap.api.location.APSService" />

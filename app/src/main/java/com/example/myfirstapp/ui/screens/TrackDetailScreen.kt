@@ -40,22 +40,20 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.amap.api.maps.AMap
-import com.amap.api.maps.CameraUpdateFactory
-import com.amap.api.maps.TextureMapView
-import com.amap.api.maps.model.LatLng
-import com.amap.api.maps.model.LatLngBounds
-import com.amap.api.maps.model.MarkerOptions
-import com.amap.api.maps.model.PolylineOptions
+import com.example.myfirstapp.map.AMapEngine
+import com.example.myfirstapp.map.GeoPoint
+import com.example.myfirstapp.map.MapEngine
+import com.example.myfirstapp.map.MapSurface
+import com.example.myfirstapp.map.MapSurfaceState
+import com.example.myfirstapp.map.MapUiSettings
+import com.example.myfirstapp.map.rememberMapSurfaceState
+import com.example.myfirstapp.mapsources.MapSourceStore
 import com.example.myfirstapp.track.GeoUtils
 import com.example.myfirstapp.track.Track
 import com.example.myfirstapp.track.TrackFileFormat
 import com.example.myfirstapp.track.TrackRepository
 import com.example.myfirstapp.track.TrackVideoExporter
-import com.example.myfirstapp.ui.components.AMapViewPool
-import com.example.myfirstapp.ui.components.MapOverlaysHolder
 import com.example.myfirstapp.ui.components.TrackExportDialog
-import com.example.myfirstapp.ui.components.applyMapSources
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -82,10 +80,9 @@ fun TrackDetailScreen(trackId: String, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
 
-    // 地图实例提升到页面级：导出视频时需要直接驱动同一地图实例
-    val mapView = remember { AMapViewPool.get("trackDetail", context) }
-    val aMap = remember { mapView.map }
-    val overlaysHolder = remember { MapOverlaysHolder() }
+    // 地图实例提升到页面级：导出视频时需要直接驱动同一地图实例。
+    // 具体是哪家厂商的地图由当前图源决定（见 map 包），这里只持有抽象句柄。
+    val mapState = rememberMapSurfaceState("trackDetail")
 
     if (deleted) {
         LaunchedEffect(Unit) { onBack() }
@@ -145,6 +142,17 @@ fun TrackDetailScreen(trackId: String, onBack: () -> Unit) {
             Toast.makeText(context, "轨迹点太少，无法生成视频", Toast.LENGTH_SHORT).show()
             return
         }
+        // 视频导出是从高德地图控件的 TextureView 抓帧 + 驱动相机飞行，
+        // 目前只有高德引擎能干这个活；腾讯/百度底图下先回高德再导出。
+        val amapView = (mapState.engine as? AMapEngine)?.textureMapView
+        if (amapView == null) {
+            Toast.makeText(
+                context,
+                "生成3D视频需要高德底图：请先在右上角图层面板切回「高德矢量/卫星」",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
         if (videoJob?.isActive == true) return
         runCatching {
             (context as? Activity)?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -157,12 +165,11 @@ fun TrackDetailScreen(trackId: String, onBack: () -> Unit) {
                 val outDir = File(context.cacheDir, "track_video").apply { mkdirs() }
                 val outFile = File(outDir, "${safe}_3D.mp4")
                 runCatching {
-                    TrackVideoExporter(mapView, tr).export(
+                    TrackVideoExporter(amapView, tr).export(
                         outFile,
                         onProgress = { videoProgress = it },
                         restore = {
-                            drawTrackOnMap(aMap, tr, fitBounds = true)
-                            runCatching { applyMapSources(aMap, overlaysHolder) }
+                            mapState.engine?.let { drawTrackOnMap(it, tr, fitBounds = true) }
                         }
                     )
                 }.onSuccess { videoFile = it }
@@ -249,7 +256,7 @@ fun TrackDetailScreen(trackId: String, onBack: () -> Unit) {
         ) {
             // ---- 地图：完整轨迹 + 途经点 ----
             Box(Modifier.fillMaxWidth().height(340.dp)) {
-                TrackPlaybackMapView(t, mapView, aMap, overlaysHolder)
+                TrackPlaybackMapView(t, mapState)
             }
 
             // ---- 数据统计 ----
@@ -378,93 +385,61 @@ fun TrackDetailScreen(trackId: String, onBack: () -> Unit) {
     }
 }
 
-/** 在地图上绘制完整轨迹（起绿终红线 + 途经点标记），fitBounds=true 时镜头框住全程 */
-private fun drawTrackOnMap(aMap: AMap, t: Track, fitBounds: Boolean) {
+/** 在地图上绘制完整轨迹（轨迹线 + 起终点 + 途经点标记），fitBounds=true 时镜头框住全程 */
+private fun drawTrackOnMap(engine: MapEngine, t: Track, fitBounds: Boolean) {
     runCatching {
-        aMap.clear()
-        val latLngs = t.points.map { LatLng(it.latitude, it.longitude) }
-        if (latLngs.size >= 2) {
-            aMap.addPolyline(
-                PolylineOptions().addAll(latLngs).width(12f).color(0xFF2E7D32.toInt())
-            )
-            aMap.addMarker(MarkerOptions().position(latLngs.first()).title("起点"))
-            aMap.addMarker(MarkerOptions().position(latLngs.last()).title("终点"))
+        engine.clearOverlays()   // 只清抽象层画过的东西，底图瓦片层不动
+        val points = t.points.map { GeoPoint(it.latitude, it.longitude) }
+        if (points.size >= 2) {
+            engine.addPolyline(points, widthPx = 12f, colorArgb = 0xFF2E7D32.toInt())
+            engine.addMarker(points.first(), title = "起点")
+            engine.addMarker(points.last(), title = "终点")
         }
         t.waypoints.forEach { w ->
-            aMap.addMarker(MarkerOptions().position(LatLng(w.latitude, w.longitude)).title(w.name))
+            engine.addMarker(GeoPoint(w.latitude, w.longitude), title = w.name)
         }
-        if (fitBounds && latLngs.isNotEmpty()) {
-            val bounds = LatLngBounds.builder().apply { latLngs.forEach { include(it) } }.build()
-            aMap.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 64))
+        if (fitBounds && points.isNotEmpty()) {
+            engine.fitBounds(points, paddingPx = 64)
         }
     }
 }
 
-/** 只读地图：画整条轨迹（起绿终红）+ 途经点标记，镜头框住全程。
- *  地图实例由页面级传入（池化复用，进出详情页不销毁，高德 SDK 频繁销毁-重建会 native 崩溃） */
+/** 只读地图：画整条轨迹（含起终点、途经点），镜头框住全程。
+ *  地图实例 [MapSurface] 负责（池化复用，进出详情页不销毁，各 SDK 都扛不住频繁销毁重建） */
 @Composable
 private fun TrackPlaybackMapView(
     t: Track,
-    mapView: TextureMapView,
-    aMap: AMap,
-    overlaysHolder: MapOverlaysHolder
+    mapState: MapSurfaceState
 ) {
     val context = LocalContext.current
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
-    DisposableEffect(Unit) {
-        AMapViewPool.ensureCreated("trackDetail", context)
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            when (event) {
-                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> mapView.onResume()
-                androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> mapView.onPause()
-                androidx.lifecycle.Lifecycle.Event.ON_DESTROY ->
-                    AMapViewPool.destroy("trackDetail")
-                else -> {}
-            }
+    MapSurface(
+        state = mapState,
+        pageKey = "trackDetail",
+        modifier = Modifier.fillMaxSize(),
+        uiSettings = MapUiSettings(),
+        overlay = {
+            // 图层切换：地图右上角
+            com.example.myfirstapp.ui.components.MapLayerSwitcher(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 10.dp, end = 10.dp)
+            )
+
+            // 当前图源署名（左下角，紧贴 SDK 自带 logo 右侧）
+            com.example.myfirstapp.ui.components.MapAttribution(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 84.dp, bottom = 6.dp)
+            )
         }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        aMap.uiSettings.isZoomControlsEnabled = false
-        onDispose {
-            // 离开详情页：清掉上一条轨迹的覆盖物 + 解除监听 + pause；地图实例留在池中
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            overlaysHolder.clearAll()
-            aMap.clear()
-            mapView.onPause()
-        }
-    }
-    Box(modifier = Modifier.fillMaxSize()) {
-        AndroidView(
-            factory = { mapView },
-            modifier = Modifier.fillMaxSize(),
-            onRelease = { view ->
-                (view.parent as? android.view.ViewGroup)?.removeView(view)
-            }
-        )
+    )
 
-        // 图层切换：地图右上角
-        com.example.myfirstapp.ui.components.MapLayerSwitcher(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 10.dp, end = 10.dp)
-        )
-
-        // 当前图源署名（左下角，紧贴 SDK 自带的「高德地图」logo 右侧）
-        com.example.myfirstapp.ui.components.MapAttribution(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 84.dp, bottom = 6.dp)
-        )
-    }
-
-    // ---- 图源配置变化（或首次进入）→ 应用底图/叠加层 ----
-    LaunchedEffect(com.example.myfirstapp.mapsources.MapSourceStore.revision) {
-        com.example.myfirstapp.mapsources.MapSourceStore.ensureLoaded(context)
-        applyMapSources(aMap, overlaysHolder)
-    }
-
-    LaunchedEffect(t.id) {
-        drawTrackOnMap(aMap, t, fitBounds = true)
+    // ---- 轨迹 / 图源变化 → 重绘 ----
+    LaunchedEffect(mapState.engine, t.id) {
+        val engine = mapState.engine ?: return@LaunchedEffect
+        MapSourceStore.ensureLoaded(context)
+        drawTrackOnMap(engine, t, fitBounds = true)
     }
 }
 
