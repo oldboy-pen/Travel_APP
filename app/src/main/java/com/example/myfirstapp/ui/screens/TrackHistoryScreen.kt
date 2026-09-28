@@ -46,7 +46,11 @@ import androidx.compose.foundation.background
  * - 顶部账号卡片：未登录显示「登录/注册」入口，已登录显示昵称与退出
  */
 @Composable
-fun TrackHistoryScreen(onOpenTrack: (String) -> Unit, onOpenAuth: () -> Unit) {
+fun TrackHistoryScreen(
+    onOpenTrack: (String) -> Unit,
+    onOpenAuth: () -> Unit,
+    onOpenCloudAuth: () -> Unit
+) {
     val context = LocalContext.current
     val repo = remember { TrackRepository.get(context) }
     val userVm: UserViewModel = viewModel()
@@ -168,6 +172,14 @@ fun TrackHistoryScreen(onOpenTrack: (String) -> Unit, onOpenAuth: () -> Unit) {
                 message = "已退出登录"
             }
         )
+
+        // 云端账号验证入口（临时，验证完可连同 cloudAuth 路由一起删掉）
+        TextButton(
+            onClick = onOpenCloudAuth,
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        ) {
+            Text("云端账号验证（临时）", style = MaterialTheme.typography.bodySmall)
+        }
 
         if (tracks.isEmpty()) {
             Box(

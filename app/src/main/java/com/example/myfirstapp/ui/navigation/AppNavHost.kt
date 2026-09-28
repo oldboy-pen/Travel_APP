@@ -21,6 +21,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.myfirstapp.ui.screens.CloudAuthScreen
 import com.example.myfirstapp.ui.screens.HomeScreen
 import com.example.myfirstapp.ui.screens.LoginScreen
 import com.example.myfirstapp.ui.screens.MapScreen
@@ -87,8 +88,12 @@ fun AppRoot() {
             composable("history") {
                 TrackHistoryScreen(
                     onOpenTrack = { id -> navController.navigateToTrackDetail(id) },
-                    onOpenAuth = { navController.navigate("login") }
+                    onOpenAuth = { navController.navigate("login") },
+                    onOpenCloudAuth = { navController.navigate("cloudAuth") }
                 )
+            }
+            composable("cloudAuth") {
+                CloudAuthScreen(onBack = { navController.popBackStack() })
             }
             composable("login") {
                 LoginScreen(

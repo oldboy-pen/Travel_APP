@@ -30,12 +30,14 @@
         <package android:name="com.autonavi.minimap" />
     </queries>
 
+    <!-- Android 9+ 默认禁止明文 HTTP；这里临时放行，方便连本机验证服务器（正式包应删掉） -->
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.MyFirstApp">
+        android:theme="@style/Theme.MyFirstApp"
+        android:usesCleartextTraffic="true">
 
         <!-- ★ 地图厂商 Key：替换成你自己申请的！三处都必须改，否则对应图源白屏/水印「鉴权失败」 -->
         <!-- 高德开放平台 https://console.amap.com/dev/key/app -->
