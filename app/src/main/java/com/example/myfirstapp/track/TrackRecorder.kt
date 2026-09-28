@@ -35,6 +35,7 @@ object TrackRecorder {
     private var tickerJob: kotlinx.coroutines.Job? = null
     private var segmentStartElapsed = 0L     // 本段（两次暂停之间）开始时间
     private var accumulatedDuration = 0L     // 暂停前已累计时长
+    private var lastGpsFixAt = 0L            // 最近一次 GPS 来源定位的时刻（网络点展示/入轨门槛用）
 
     val isRecording: Boolean get() = _data.value.state != RecorderState.IDLE
 
@@ -55,6 +56,7 @@ object TrackRecorder {
         } else {
             accumulatedDuration = 0
             _data.value = RecordingData(activityType = _data.value.activityType) // 重置保留运动方式
+            lastGpsFixAt = 0L
         }
         segmentStartElapsed = SystemClock_elapsed()
 
@@ -75,7 +77,10 @@ object TrackRecorder {
                         return@setLocationListener
                     }
                     if (_data.value.state != RecorderState.RECORDING) return@setLocationListener
-                    onNewFix(loc.latitude, loc.longitude, loc.altitude, loc.speed, loc.time, loc.accuracy, loc.locationType)
+                    onNewFix(
+                        loc.latitude, loc.longitude, loc.altitude, loc.speed, loc.time,
+                        loc.accuracy, loc.locationType, loc.bearing
+                    )
                 }
             }
         }
@@ -86,14 +91,21 @@ object TrackRecorder {
         if (motionHelper == null) motionHelper = MotionSensorHelper(appContext)
         motionHelper?.start()
 
-        _data.value = _data.value.copy(state = RecorderState.RECORDING)
+        _data.value = _data.value.copy(
+            state = RecorderState.RECORDING,
+            stepSensorStatus = motionHelper?.status ?: StepSensorStatus.NO_SENSOR
+        )
 
-        // 每秒刷新一次计时（定位回调不触发时，表也要走）
+        // 每秒刷新一次计时和步数（定位回调被过滤/失败时，表要走、步数也不能冻结）
         tickerJob?.cancel()
         tickerJob = scope.launch {
             while (isActive && _data.value.state == RecorderState.RECORDING) {
-                _data.value = _data.value.copy(
-                    durationMillis = accumulatedDuration + (SystemClock_elapsed() - segmentStartElapsed)
+                val h = motionHelper
+                val d = _data.value
+                _data.value = d.copy(
+                    durationMillis = accumulatedDuration + (SystemClock_elapsed() - segmentStartElapsed),
+                    stepCount = h?.stepCount() ?: d.stepCount,
+                    stepSensorStatus = h?.status ?: d.stepSensorStatus
                 )
                 delay(1000)
             }
@@ -101,12 +113,26 @@ object TrackRecorder {
     }
 
     /**
-     * 处理一次有效定位：来源+精度双重过滤 → 计步器辅助降噪 → 累积距离/爬升
+     * （重新）启动计步传感器。用于运行时补授「身体活动」权限后立即生效，
+     * 无需结束/重开记录。仅在记录中有效。
+     */
+    fun startMotionSensors() {
+        if (_data.value.state != RecorderState.RECORDING) return
+        motionHelper?.start()
+        _data.value = _data.value.copy(stepSensorStatus = motionHelper?.status
+            ?: StepSensorStatus.NO_SENSOR)
+    }
+
+    /**
+     * 处理一次有效定位：显示定位（GPS 优先）→ 来源+精度双重过滤 → 计步器辅助
+     * 降噪 → 累积距离/爬升
      *
      * 定位来源 locationType：1=GPS、2=前次缓存、4=WiFi、5=基站（高德定义）
-     * GPS 点精度天然 5-15 米；WiFi/基站点精度 20-100 米，是 20 米级位置偏差
-     * 的主因——只有精度极佳（≤15 米）时才允许进轨迹，否则只更新"最后位置"
-     * 供打点参考。
+     * GPS 点精度天然 5-15 米；WiFi/基站点精度 20-100 米且实测位置可偏 20~50 米
+     * （"定位偏差"的主因）——因此：
+     * - 显示（蓝点）：GPS 点优先；网络点仅在 GPS 失联超 30 秒后兜底展示
+     * - 入轨：GPS 点按精度门槛收；网络点额外要求 GPS 已失联超 60 秒
+     *   （GPS 还新鲜时 WiFi 点带偏轨迹，宁可不要）
      *
      * 计步器辅助（MotionSensorHelper）：
      * - 确认在走（本周期有新步子或最近 4 秒内有步子）→ 静止漂移过滤跳过，
@@ -118,33 +144,49 @@ object TrackRecorder {
      * 降噪阈值取自当前运动方式的 RecordingProfile：徒步/登山为 SENSITIVE
      * （抖动阈值封顶 1 米），1 米级小位移也能入轨；被丢弃的位移会在后续
      * 定位中相对"上一个记录点"补回，不丢里程。
+     *
+     * 注意：步数显示由 ticker 每秒刷新（本方法被过滤提前返回时步数也不能冻结）。
      */
     private fun onNewFix(
         lat: Double, lng: Double, altitude: Double,
-        speed: Float, time: Long, accuracy: Float, locationType: Int
+        speed: Float, time: Long, accuracy: Float, locationType: Int, bearing: Float
     ) {
-        val current = _data.value
+        var current = _data.value
         val last = current.points.lastOrNull()
+        val isGps = locationType == 1
+        val newTime = if (time > 0) time else System.currentTimeMillis()
 
         // ---- 计步器：本周期新增步数 + 是否正在走 ----
         val helper = motionHelper
         val stepsSinceLastFix = helper?.consumePendingSteps() ?: 0
         val motionConfirmed = helper != null && (stepsSinceLastFix > 0 || helper.isWalking())
 
-        val isGps = locationType == 1
+        // ---- 显示定位：GPS 优先，网络点仅在 GPS 失联超 30 秒时兜底 ----
+        if (isGps) {
+            lastGpsFixAt = newTime
+            current = current.copy(
+                lastLatitude = lat, lastLongitude = lng, lastAccuracy = accuracy,
+                lastBearing = bearing, lastFixIsGps = true, lastFixTime = newTime
+            )
+        } else if (lastGpsFixAt == 0L || newTime - lastGpsFixAt > GPS_STALE_FOR_DISPLAY_MS) {
+            current = current.copy(
+                lastLatitude = lat, lastLongitude = lng, lastAccuracy = accuracy,
+                lastBearing = bearing, lastFixIsGps = false, lastFixTime = newTime
+            )
+        }
+        _data.value = current
+
+        // ---- 入轨门槛：GPS 还新鲜时，网络点一律不入轨（防 WiFi 带偏轨迹） ----
+        if (!isGps && lastGpsFixAt > 0L && newTime - lastGpsFixAt <= GPS_STALE_FOR_TRACK_MS) return
+
         // 精度门槛：GPS 点 ≤30 米（计步器确认移动中放宽到 ≤50 米）；非 GPS 点恒 ≤15 米
         val maxAccuracy = when {
             isGps && motionConfirmed -> 50f
             isGps -> 30f
             else -> 15f
         }
-        if (accuracy > 0f && accuracy > maxAccuracy) {
-            // 精度差的点不进轨迹，但仍更新"最后位置"，保证打点标记可用
-            _data.value = current.copy(lastLatitude = lat, lastLongitude = lng)
-            return
-        }
+        if (accuracy > 0f && accuracy > maxAccuracy) return // 差点不入轨（显示定位已更新）
 
-        val newTime = if (time > 0) time else System.currentTimeMillis()
         // 与上一记录点的间隔：GPS 丢锁恢复后天然变大，跳点判定据此缩放（上限 10 分钟）
         val elapsedMs = if (last != null)
             (newTime - last.time).coerceIn(0L, 10 * 60_000L) else 1_000L
@@ -165,10 +207,7 @@ object TrackRecorder {
             distanceMeters = current.distanceMeters + addDistance,
             climbMeters = current.climbMeters + addClimb,
             currentSpeed = speed,
-            lastLatitude = lat,
-            lastLongitude = lng,
             fixCount = current.fixCount + 1,
-            stepCount = helper?.stepCount() ?: current.stepCount,
             locationError = null   // 收到有效定位，清除错误提示
         )
     }
@@ -261,4 +300,9 @@ object TrackRecorder {
 
     /** SystemClock.elapsedRealnode 的替身（单例中不可用 Context） */
     private fun SystemClock_elapsed(): Long = android.os.SystemClock.elapsedRealtime()
+
+    /** GPS 失联超过该时长，蓝点才兜底显示网络定位（WiFi/基站实测可偏 20~50 米） */
+    private const val GPS_STALE_FOR_DISPLAY_MS = 30_000L
+    /** GPS 失联超过该时长，网络定位点才允许入轨（防 WiFi 点带偏轨迹） */
+    private const val GPS_STALE_FOR_TRACK_MS = 60_000L
 }

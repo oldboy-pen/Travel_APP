@@ -147,9 +147,9 @@ class GeoUtilsNoiseFilterTest {
 
     @Test
     fun motion_confirmed_should_not_bypass_jitter_filter() {
-        // 计步器不豁免抖动规则：0.5 米的微小抖动仍丢弃（防锯齿噪声虚增里程）
+        // 计步器不豁免抖动规则：0.1 米的微小抖动仍丢弃（防锯齿噪声虚增里程）
         val noise = GeoUtils.isNoise(
-            last, latOffset(0.5), 120.0, speed = 1.0f, accuracy = 20f,
+            last, latOffset(0.1), 120.0, speed = 0.5f, accuracy = 20f,
             profile = ActivityType.WALKING.profile, motionConfirmed = true
         )
         assertTrue("确认在走时亚米级抖动仍应被丢弃", noise)

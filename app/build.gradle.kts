@@ -66,6 +66,10 @@ dependencies {
     implementation(libs.amap.map3d)
     implementation(libs.amap.search)
 
+    // 二维码：扫码添加图源（embedded 内置 CaptureActivity）+ 生成分享二维码
+    implementation(libs.zxing.embedded)
+    implementation(libs.zxing.core)
+
     // 调试工具（仅 debug 生效）
     debugImplementation(libs.androidx.ui.tooling)
 

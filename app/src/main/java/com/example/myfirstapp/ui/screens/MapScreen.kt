@@ -163,6 +163,8 @@ private fun AMapView(state: MapUiState, onMapLongClick: (LatLng) -> Unit) {
     // 池化复用：切 Tab 不销毁地图（高德 SDK 频繁销毁-重建会 native 崩溃）
     val mapView = remember { com.example.myfirstapp.ui.components.AMapViewPool.get("map", context) }
     val aMap = remember { mapView.map }
+    // 图层/图源状态（全局共享，见 MapSourceStore）
+    val overlaysHolder = remember { com.example.myfirstapp.ui.components.MapOverlaysHolder() }
 
     // 生命周期绑定
     DisposableEffect(lifecycleOwner) {
@@ -184,13 +186,28 @@ private fun AMapView(state: MapUiState, onMapLongClick: (LatLng) -> Unit) {
         }
     }
 
-    AndroidView(
-        factory = { mapView },
-        modifier = Modifier.fillMaxSize(),
-        onRelease = { view ->
-            (view.parent as? android.view.ViewGroup)?.removeView(view)
-        }
-    )
+    Box(modifier = Modifier.fillMaxSize()) {
+        AndroidView(
+            factory = { mapView },
+            modifier = Modifier.fillMaxSize(),
+            onRelease = { view ->
+                (view.parent as? android.view.ViewGroup)?.removeView(view)
+            }
+        )
+
+        // 图层/图源切换：地图右上角
+        com.example.myfirstapp.ui.components.MapLayerSwitcher(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 10.dp, end = 10.dp)
+        )
+    }
+
+    // ---- 图源配置变化（或首次进入）→ 应用底图/叠加层 ----
+    LaunchedEffect(com.example.myfirstapp.mapsources.MapSourceStore.revision) {
+        com.example.myfirstapp.mapsources.MapSourceStore.ensureLoaded(context)
+        com.example.myfirstapp.ui.components.applyMapSources(aMap, overlaysHolder)
+    }
 
     // 初始化地图：蓝点连续定位 + 右下角定位按钮 + 长按设目的地
     LaunchedEffect(Unit) {
@@ -210,6 +227,8 @@ private fun AMapView(state: MapUiState, onMapLongClick: (LatLng) -> Unit) {
     // 目的地 / 路线变化 → 重绘地图覆盖物
     LaunchedEffect(state.destination, state.routePoints) {
         aMap.clear()  // 清除旧 Marker 和 Polyline（蓝点不受影响）
+        // clear() 会连瓦片图层一起清掉，需重新应用当前图源
+        com.example.myfirstapp.ui.components.applyMapSources(aMap, overlaysHolder)
         state.destination?.let {
             aMap.addMarker(MarkerOptions().position(it).title("目的地"))
         }

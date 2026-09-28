@@ -1,10 +1,13 @@
 package com.example.myfirstapp.ui.screens
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.view.WindowManager
 import android.widget.Toast
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -18,11 +21,14 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.*
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,19 +40,29 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.amap.api.maps.AMap
 import com.amap.api.maps.CameraUpdateFactory
-import com.amap.api.maps.MapView
+import com.amap.api.maps.TextureMapView
 import com.amap.api.maps.model.LatLng
 import com.amap.api.maps.model.LatLngBounds
 import com.amap.api.maps.model.MarkerOptions
 import com.amap.api.maps.model.PolylineOptions
 import com.example.myfirstapp.track.GeoUtils
 import com.example.myfirstapp.track.Track
+import com.example.myfirstapp.track.TrackFileFormat
 import com.example.myfirstapp.track.TrackRepository
+import com.example.myfirstapp.track.TrackVideoExporter
+import com.example.myfirstapp.ui.components.AMapViewPool
+import com.example.myfirstapp.ui.components.MapOverlaysHolder
+import com.example.myfirstapp.ui.components.TrackExportDialog
+import com.example.myfirstapp.ui.components.applyMapSources
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 /**
  * 轨迹详情页（回放）：地图绘制完整轨迹 + 途经点，
- * 展示里程/时长/均速/爬升，支持 GPX 分享导出、删除。
+ * 展示里程/时长/均速/爬升，支持多格式导出（GPX / KML 轨迹 / KML 路径 / KMZ）、删除。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,6 +72,20 @@ fun TrackDetailScreen(trackId: String, onBack: () -> Unit) {
     var track by remember { mutableStateOf(repo.load(trackId)) }
     var deleted by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var showExport by remember { mutableStateOf(false) }
+    var saveAsFormat by remember { mutableStateOf(TrackFileFormat.GPX) }
+
+    // ---- 3D 运动视频导出状态 ----
+    var videoProgress by remember { mutableStateOf<Float?>(null) }   // null=未在生成
+    var videoFile by remember { mutableStateOf<File?>(null) }        // 生成完成待分享
+    var videoJob by remember { mutableStateOf<Job?>(null) }
+    val scope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
+
+    // 地图实例提升到页面级：导出视频时需要直接驱动同一地图实例
+    val mapView = remember { AMapViewPool.get("trackDetail", context) }
+    val aMap = remember { mapView.map }
+    val overlaysHolder = remember { MapOverlaysHolder() }
 
     if (deleted) {
         LaunchedEffect(Unit) { onBack() }
@@ -69,6 +99,118 @@ fun TrackDetailScreen(trackId: String, onBack: () -> Unit) {
         return
     }
 
+    // 另存为：系统文件选择器指定保存位置
+    val saveAsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("*/*")
+    ) { uri ->
+        if (uri != null) {
+            val fmt = saveAsFormat
+            runCatching {
+                val file = repo.exportTrack(t, fmt)
+                context.contentResolver.openOutputStream(uri)?.use { out ->
+                    file.inputStream().use { it.copyTo(out) }
+                }
+                Toast.makeText(context, "已保存：${t.name}.${fmt.extension}", Toast.LENGTH_SHORT).show()
+            }.onFailure {
+                Toast.makeText(context, "保存失败：${it.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+        showExport = false
+    }
+
+    // 3D 视频另存为：系统文件选择器
+    val saveVideoLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("video/mp4")
+    ) { uri ->
+        if (uri != null) {
+            val f = videoFile
+            if (f != null && f.exists()) {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri)?.use { out ->
+                        f.inputStream().use { it.copyTo(out) }
+                    }
+                    Toast.makeText(context, "视频已保存", Toast.LENGTH_SHORT).show()
+                }.onFailure {
+                    Toast.makeText(context, "保存失败：${it.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        videoFile = null
+    }
+
+    /** 启动 3D 运动视频生成：地图页滚到顶 → 实时飞行回放 → 完成后弹分享/另存 */
+    fun startVideoExport() {
+        val tr = track ?: return
+        if (tr.points.size < 2) {
+            Toast.makeText(context, "轨迹点太少，无法生成视频", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (videoJob?.isActive == true) return
+        runCatching {
+            (context as? Activity)?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        videoJob = scope.launch {
+            try {
+                videoProgress = 0f
+                scrollState.animateScrollTo(0)
+                val safe = tr.name.replace(Regex("[\\\\/:*?\"<>| ]"), "_")
+                val outDir = File(context.cacheDir, "track_video").apply { mkdirs() }
+                val outFile = File(outDir, "${safe}_3D.mp4")
+                runCatching {
+                    TrackVideoExporter(mapView, tr).export(
+                        outFile,
+                        onProgress = { videoProgress = it },
+                        restore = {
+                            drawTrackOnMap(aMap, tr, fitBounds = true)
+                            runCatching { applyMapSources(aMap, overlaysHolder) }
+                        }
+                    )
+                }.onSuccess { videoFile = it }
+                    .onFailure {
+                        // 取消要向上传播，让协程正常结束
+                        if (it is CancellationException) throw it
+                        Toast.makeText(context, "视频生成失败：${it.message}", Toast.LENGTH_LONG).show()
+                    }
+            } finally {
+                videoProgress = null
+                runCatching {
+                    (context as? Activity)?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                }
+            }
+        }
+    }
+
+    // 导出弹窗：选格式 + 分享/另存
+    if (showExport) {
+        TrackExportDialog(
+            trackName = t.name,
+            onDismiss = { showExport = false },
+            onShare = { format ->
+                showExport = false
+                runCatching {
+                    val file = repo.exportTrack(t, format)
+                    val uri = FileProvider.getUriForFile(
+                        context, "${context.packageName}.fileprovider", file
+                    )
+                    context.startActivity(
+                        Intent.createChooser(
+                            Intent(Intent.ACTION_SEND).apply {
+                                type = format.mimeType
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            },
+                            "分享轨迹（${format.label}）"
+                        )
+                    )
+                }
+            },
+            onSaveAs = { format ->
+                saveAsFormat = format
+                saveAsLauncher.launch("${t.name}.${format.extension}")
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -79,23 +221,17 @@ fun TrackDetailScreen(trackId: String, onBack: () -> Unit) {
                     }
                 },
                 actions = {
-                    // 分享 GPX
-                    IconButton(onClick = {
-                        val file = repo.exportGpx(t)
-                        val uri = FileProvider.getUriForFile(
-                            context, "${context.packageName}.fileprovider", file
-                        )
-                        context.startActivity(
-                            Intent.createChooser(
-                                Intent(Intent.ACTION_SEND).apply {
-                                    type = "application/gpx+xml"
-                                    putExtra(Intent.EXTRA_STREAM, uri)
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                },
-                                "分享轨迹 GPX"
-                            )
-                        )
-                    }) { Icon(Icons.Default.IosShare, "分享GPX") }
+                    // 3D 运动视频：倾斜视角沿轨迹飞行 + 实时数据字幕，导出 MP4
+                    IconButton(
+                        onClick = { startVideoExport() },
+                        enabled = videoProgress == null
+                    ) {
+                        Icon(Icons.Default.Movie, "生成3D运动视频")
+                    }
+                    // 导出（GPX / KML 轨迹 / KML 路径 / KMZ）
+                    IconButton(onClick = { showExport = true }) {
+                        Icon(Icons.Default.IosShare, "导出轨迹")
+                    }
                     // 删除
                     IconButton(onClick = { confirmDelete = true }) {
                         Icon(Icons.Default.Delete, "删除",
@@ -109,11 +245,11 @@ fun TrackDetailScreen(trackId: String, onBack: () -> Unit) {
             Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
         ) {
             // ---- 地图：完整轨迹 + 途经点 ----
             Box(Modifier.fillMaxWidth().height(340.dp)) {
-                TrackPlaybackMapView(t)
+                TrackPlaybackMapView(t, mapView, aMap, overlaysHolder)
             }
 
             // ---- 数据统计 ----
@@ -169,29 +305,121 @@ fun TrackDetailScreen(trackId: String, onBack: () -> Unit) {
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } }
         )
     }
+
+    // ---- 3D 运动视频：生成进度弹窗（实时回放中，请勿切走页面）----
+    videoProgress?.let { p ->
+        AlertDialog(
+            onDismissRequest = {},   // 生成中不可误触关闭
+            title = { Text("生成 3D 运动视频") },
+            text = {
+                Column {
+                    Text("正在以 3D 视角沿轨迹飞行录制，请保持本页面在前台…")
+                    Spacer(Modifier.height(12.dp))
+                    LinearProgressIndicator(
+                        progress = { p },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "${(p * 100).toInt()}%",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { videoJob?.cancel() }) { Text("取消") }
+            }
+        )
+    }
+
+    // ---- 3D 运动视频：生成完成，分享/另存 ----
+    videoFile?.let { f ->
+        AlertDialog(
+            onDismissRequest = { videoFile = null },
+            title = { Text("视频已生成") },
+            text = {
+                Text("「${t.name}_3D.mp4」（%.1f MB）已就绪，可分享或保存到相册/指定位置。"
+                    .format(f.length() / 1048576.0))
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val vf = videoFile
+                    if (vf != null && vf.exists()) {
+                        runCatching {
+                            val uri = FileProvider.getUriForFile(
+                                context, "${context.packageName}.fileprovider", vf
+                            )
+                            context.startActivity(
+                                Intent.createChooser(
+                                    Intent(Intent.ACTION_SEND).apply {
+                                        type = "video/mp4"
+                                        putExtra(Intent.EXTRA_STREAM, uri)
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    },
+                                    "分享 3D 运动视频"
+                                )
+                            )
+                        }
+                    }
+                    videoFile = null
+                }) { Text("分享") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        saveVideoLauncher.launch("${t.name}_3D.mp4")
+                    }) { Text("另存到…") }
+                    TextButton(onClick = { videoFile = null }) { Text("关闭") }
+                }
+            }
+        )
+    }
 }
 
-/** 只读地图：画整条轨迹（起绿终红）+ 途经点标记，镜头框住全程 */
+/** 在地图上绘制完整轨迹（起绿终红线 + 途经点标记），fitBounds=true 时镜头框住全程 */
+private fun drawTrackOnMap(aMap: AMap, t: Track, fitBounds: Boolean) {
+    runCatching {
+        aMap.clear()
+        val latLngs = t.points.map { LatLng(it.latitude, it.longitude) }
+        if (latLngs.size >= 2) {
+            aMap.addPolyline(
+                PolylineOptions().addAll(latLngs).width(12f).color(0xFF2E7D32.toInt())
+            )
+            aMap.addMarker(MarkerOptions().position(latLngs.first()).title("起点"))
+            aMap.addMarker(MarkerOptions().position(latLngs.last()).title("终点"))
+        }
+        t.waypoints.forEach { w ->
+            aMap.addMarker(MarkerOptions().position(LatLng(w.latitude, w.longitude)).title(w.name))
+        }
+        if (fitBounds && latLngs.isNotEmpty()) {
+            val bounds = LatLngBounds.builder().apply { latLngs.forEach { include(it) } }.build()
+            aMap.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 64))
+        }
+    }
+}
+
+/** 只读地图：画整条轨迹（起绿终红）+ 途经点标记，镜头框住全程。
+ *  地图实例由页面级传入（池化复用，进出详情页不销毁，高德 SDK 频繁销毁-重建会 native 崩溃） */
 @Composable
-private fun TrackPlaybackMapView(t: Track) {
+private fun TrackPlaybackMapView(
+    t: Track,
+    mapView: TextureMapView,
+    aMap: AMap,
+    overlaysHolder: MapOverlaysHolder
+) {
     val context = LocalContext.current
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    // 池化复用：进出详情页不销毁地图（高德 SDK 频繁销毁-重建会 native 崩溃）
-    val mapView = remember { com.example.myfirstapp.ui.components.AMapViewPool.get("trackDetail", context) }
-    val aMap = remember { mapView.map }
-
-    // ---- 图层切换状态 ----
-    var layerMode by remember { mutableStateOf(com.example.myfirstapp.ui.components.MapLayerMode.NORMAL) }
-    val terrainOverlay = remember { mutableStateOf<com.amap.api.maps.model.TileOverlay?>(null) }
 
     DisposableEffect(Unit) {
-        com.example.myfirstapp.ui.components.AMapViewPool.ensureCreated("trackDetail", context)
+        AMapViewPool.ensureCreated("trackDetail", context)
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             when (event) {
                 androidx.lifecycle.Lifecycle.Event.ON_RESUME -> mapView.onResume()
                 androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> mapView.onPause()
                 androidx.lifecycle.Lifecycle.Event.ON_DESTROY ->
-                    com.example.myfirstapp.ui.components.AMapViewPool.destroy("trackDetail")
+                    AMapViewPool.destroy("trackDetail")
                 else -> {}
             }
         }
@@ -200,7 +428,7 @@ private fun TrackPlaybackMapView(t: Track) {
         onDispose {
             // 离开详情页：清掉上一条轨迹的覆盖物 + 解除监听 + pause；地图实例留在池中
             lifecycleOwner.lifecycle.removeObserver(observer)
-            terrainOverlay.value?.remove()
+            overlaysHolder.clearAll()
             aMap.clear()
             mapView.onPause()
         }
@@ -216,34 +444,20 @@ private fun TrackPlaybackMapView(t: Track) {
 
         // 图层切换：地图右上角
         com.example.myfirstapp.ui.components.MapLayerSwitcher(
-            current = layerMode,
-            onSelect = { mode ->
-                layerMode = mode
-                com.example.myfirstapp.ui.components.applyMapLayer(aMap, mode, terrainOverlay)
-            },
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = 10.dp, end = 10.dp)
         )
     }
 
+    // ---- 图源配置变化（或首次进入）→ 应用底图/叠加层 ----
+    LaunchedEffect(com.example.myfirstapp.mapsources.MapSourceStore.revision) {
+        com.example.myfirstapp.mapsources.MapSourceStore.ensureLoaded(context)
+        applyMapSources(aMap, overlaysHolder)
+    }
+
     LaunchedEffect(t.id) {
-        val latLngs = t.points.map { LatLng(it.latitude, it.longitude) }
-        if (latLngs.size >= 2) {
-            aMap.addPolyline(
-                PolylineOptions().addAll(latLngs).width(12f).color(0xFF2E7D32.toInt())
-            )
-            // 起点/终点 Marker
-            aMap.addMarker(MarkerOptions().position(latLngs.first()).title("起点"))
-            aMap.addMarker(MarkerOptions().position(latLngs.last()).title("终点"))
-        }
-        t.waypoints.forEach { w ->
-            aMap.addMarker(MarkerOptions().position(LatLng(w.latitude, w.longitude)).title(w.name))
-        }
-        if (latLngs.isNotEmpty()) {
-            val bounds = LatLngBounds.builder().apply { latLngs.forEach { include(it) } }.build()
-            aMap.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 64))
-        }
+        drawTrackOnMap(aMap, t, fitBounds = true)
     }
 }
 

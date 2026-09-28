@@ -8,6 +8,7 @@ coreKtx = "1.13.1"
 navigationCompose = "2.8.1"
 amapMap3d = "9.8.3"       # 高德 3D 地图 SDK（已内置定位功能）
 amapSearch = "9.7.1"      # 高德搜索/路径规划 SDK（Maven Central 最新版）
+zxingEmbedded = "4.3.0"   # 二维码扫描/生成（扫码添加图源用）
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -23,6 +24,8 @@ androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lif
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
 amap-map3d = { group = "com.amap.api", name = "3dmap", version.ref = "amapMap3d" }
 amap-search = { group = "com.amap.api", name = "search", version.ref = "amapSearch" }
+zxing-embedded = { group = "com.journeyapps", name = "zxing-android-embedded", version.ref = "zxingEmbedded" }
+zxing-core = { group = "com.google.zxing", name = "core", version = "3.4.1" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
 androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 

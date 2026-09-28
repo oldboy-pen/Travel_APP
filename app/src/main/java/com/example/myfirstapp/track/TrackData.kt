@@ -140,7 +140,13 @@ data class RecordingData(
     val fixCount: Int = 0,         // GPS 有效定位次数（信号质量参考）
     val stepCount: Int = 0,        // 计步器累计步数（无传感器/无权限时恒为 0）
     val locationError: String? = null, // 定位失败原因（如 Key 无效），null 表示正常
-    val activityType: ActivityType = ActivityType.DEFAULT
+    val activityType: ActivityType = ActivityType.DEFAULT,
+    // ---- 最新定位（显示用：GPS 优先，网络点仅在 GPS 失联超时后兜底） ----
+    val lastAccuracy: Float = 0f,     // 定位精度（米），驱动蓝点精度圈
+    val lastBearing: Float = 0f,      // 航向角，驱动蓝点方向箭头
+    val lastFixIsGps: Boolean = false, // 当前显示点是否 GPS 来源（非 GPS 会偏 20~50 米）
+    val lastFixTime: Long = 0L,       // 定位时间戳，UI 据此驱动自绘蓝点重绘
+    val stepSensorStatus: StepSensorStatus = StepSensorStatus.ACTIVE // 计步可用性（ACTIVE 时无提示）
 )
 
 /** 地理计算工具 */

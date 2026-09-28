@@ -37,11 +37,18 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.amap.api.maps.CameraUpdateFactory
 import com.amap.api.maps.MapView
+import com.amap.api.maps.model.BitmapDescriptor
+import com.amap.api.maps.model.BitmapDescriptorFactory
+import com.amap.api.maps.model.Circle
+import com.amap.api.maps.model.CircleOptions
 import com.amap.api.maps.model.LatLng
+import com.amap.api.maps.model.Marker
+import com.amap.api.maps.model.MarkerOptions
 import com.amap.api.maps.model.MyLocationStyle
 import com.amap.api.maps.model.PolylineOptions
 import com.example.myfirstapp.track.GeoUtils
 import com.example.myfirstapp.track.RecorderState
+import com.example.myfirstapp.track.StepSensorStatus
 import com.example.myfirstapp.track.TrackRecorder
 import com.example.myfirstapp.track.TrackRecordingService
 import com.example.myfirstapp.track.TrackRepository
@@ -198,6 +205,18 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
         )
     }
 
+    // 身体活动权限补申请：授予后立即重启计步传感器（无需重开记录）
+    val activityRecognitionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            TrackRecorder.startMotionSensors()
+            Toast.makeText(context, "计步已开启", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(context, "无「身体活动」权限，步数将无法统计", Toast.LENGTH_LONG).show()
+        }
+    }
+
     fun startTrackingWithSelectedMode(activityType: com.example.myfirstapp.track.ActivityType) {
         selectedActivityType = activityType
         if (!permissionsGranted) {
@@ -206,6 +225,13 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
         }
         TrackRecorder.start(context, activityType)
         TrackRecordingService.start(context)
+        // Android 10+ 计步需要「身体活动」权限；被拒过的话在开始记录时补一次申请
+        if (Build.VERSION.SDK_INT >= 29 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACTIVITY_RECOGNITION)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            activityRecognitionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+        }
     }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -269,6 +295,12 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
                     when {
                         data.state == RecorderState.RECORDING && data.locationError != null ->
                             data.locationError.orEmpty()
+                        data.state == RecorderState.RECORDING &&
+                                data.stepSensorStatus == StepSensorStatus.NO_PERMISSION ->
+                            "正在记录 · 计步不可用：请授予「身体活动」权限（结束并重开记录生效）"
+                        data.state == RecorderState.RECORDING &&
+                                data.stepSensorStatus == StepSensorStatus.NO_SENSOR ->
+                            "正在记录 · 计步不可用：本机无计步传感器"
                         data.state == RecorderState.RECORDING && data.fixCount < 5 -> "GPS 信号弱，请在开阔处等待…"
                         data.state == RecorderState.RECORDING -> "正在记录 · ${data.activityType.label} · 当前 %.1f km/h".format(data.currentSpeed * 3.6)
                         data.state == RecorderState.PAUSED -> "已暂停 · ${data.activityType.label}"
@@ -524,37 +556,70 @@ private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
     val mapView = remember { com.example.myfirstapp.ui.components.AMapViewPool.get("record", context) }
     val aMap = remember { mapView.map }
 
-    // ---- 图层切换状态 ----
-    var layerMode by remember { mutableStateOf(com.example.myfirstapp.ui.components.MapLayerMode.NORMAL) }
-    val terrainOverlay = remember { mutableStateOf<com.amap.api.maps.model.TileOverlay?>(null) }
+    // ---- 图层/图源状态（全局共享，见 MapSourceStore） ----
+    val overlaysHolder = remember { com.example.myfirstapp.ui.components.MapOverlaysHolder() }
 
     // ---- 跟随状态：点定位按钮开启，用户手动拖动地图自动退出 ----
     val followMode = remember { mutableStateOf(false) }
-    // 地图 SDK 最新定位（蓝点位置缓存；aMap.myLocation 实测取不到，用监听器自己存）
+    // 最新定位（记录中来自 TrackRecorder 的过滤定位流；非记录中来自 SDK 蓝点监听）
     val blueDotLatLng = remember { mutableStateOf<LatLng?>(null) }
     // 首次拿到定位 → 自动回中一次
     val hasAutoCentered = remember { mutableStateOf(false) }
     // 最后一次用户手势时间（60s 无操作自动回中用）
     val lastGestureAt = remember { mutableStateOf(0L) }
-    val locationStyle = remember {
-        MyLocationStyle().apply {
-            // 纯定位点：只显示蓝点不自动转镜头；跟随模式用 LOCATION_TYPE_LOCATION_ROTATE
-            myLocationType(MyLocationStyle.LOCATION_TYPE_LOCATION_ROTATE_NO_CENTER)
-            interval(2000)
-        }
+    // 自绘蓝点覆盖物（记录中使用；aMap.clear() 会清掉，靠每次定位重画恢复）
+    val blueDotMarker = remember { mutableStateOf<Marker?>(null) }
+    val accuracyCircle = remember { mutableStateOf<Circle?>(null) }
+    // 蓝点图标：Canvas 画"白边蓝点"位图（向量图作 Marker 图标在部分机型不显示）
+    val blueDotIcon: BitmapDescriptor = remember {
+        val density = context.resources.displayMetrics.density
+        val size = (30 * density).toInt()
+        val bmp = android.graphics.Bitmap.createBitmap(
+            size, size, android.graphics.Bitmap.Config.ARGB_8888
+        )
+        val canvas = android.graphics.Canvas(bmp)
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        paint.color = 0xFFFFFFFF.toInt()
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+        paint.color = 0xFF1E88E5.toInt()
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f - 3 * density, paint)
+        BitmapDescriptorFactory.fromBitmap(bmp)
     }
-    val followStyle = remember {
-        MyLocationStyle().apply {
-            // 跟随模式：定位 + 旋转
-            myLocationType(MyLocationStyle.LOCATION_TYPE_LOCATION_ROTATE)
-            interval(2000)
-        }
-    }
-    /** 退出跟随模式：恢复纯定位点样式（不自动转镜头） */
+
+    /** 退出跟随模式（自绘蓝点时代无需换样式，只关标志） */
     fun exitFollowMode() {
-        if (followMode.value) {
-            followMode.value = false
-            aMap.myLocationStyle = locationStyle
+        followMode.value = false
+    }
+
+    /**
+     * 重画自绘蓝点 + 精度圈：记录中每次显示定位更新 / 轨迹线 clear 后调用。
+     * 位置来自 TrackRecorder 的显示定位（GPS 优先、网络点仅在 GPS 失联超 30s
+     * 后兜底），替代 SDK 内置蓝点——内置定位客户端无法配置，GPS 弱时切
+     * WiFi 定位会产生 20~50 米的"蓝点偏离实际位置"。
+     */
+    fun redrawBlueDot() {
+        val lat = data.lastLatitude ?: return
+        val lng = data.lastLongitude ?: return
+        val pos = LatLng(lat, lng)
+        blueDotLatLng.value = pos
+        blueDotMarker.value?.remove()
+        accuracyCircle.value?.remove()
+        blueDotMarker.value = aMap.addMarker(
+            MarkerOptions()
+                .position(pos)
+                .anchor(0.5f, 0.5f)
+                .icon(blueDotIcon)
+                .zIndex(10f)
+        )
+        if (data.lastAccuracy > 0f) {
+            accuracyCircle.value = aMap.addCircle(
+                CircleOptions()
+                    .center(pos)
+                    .radius(data.lastAccuracy.toDouble())
+                    .fillColor(0x141E88E5)
+                    .strokeColor(0x661E88E5)
+                    .strokeWidth(2f)
+            )
         }
     }
 
@@ -573,10 +638,8 @@ private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
         owner.lifecycle.addObserver(observer)
         aMap.uiSettings.isZoomControlsEnabled = false
         aMap.uiSettings.isMyLocationButtonEnabled = false // 关掉右下角内置按钮（会被底部面板遮挡），改为自绘 FAB
-        aMap.isMyLocationEnabled = true
-        aMap.myLocationStyle = locationStyle
 
-        // 蓝点位置变化 → 缓存最新位置；首次定位自动回中一次
+        // 蓝点位置变化（非记录中 SDK 蓝点触发）→ 缓存最新位置；首次定位自动回中一次
         aMap.setOnMyLocationChangeListener { location ->
             location ?: return@setOnMyLocationChangeListener
             blueDotLatLng.value = LatLng(location.latitude, location.longitude)
@@ -604,6 +667,34 @@ private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
             mapView.onPause()
         }
     }
+
+    // ---- 蓝点来源切换：记录中=自绘（GPS 优先的过滤定位），非记录中=SDK 内置 ----
+    LaunchedEffect(data.state) {
+        if (data.state == RecorderState.RECORDING) {
+            aMap.isMyLocationEnabled = false // 关掉 SDK 蓝点（其内置客户端不可配置，GPS 弱时偏 20~50 米）
+        } else {
+            blueDotMarker.value?.remove(); blueDotMarker.value = null
+            accuracyCircle.value?.remove(); accuracyCircle.value = null
+            aMap.isMyLocationEnabled = true // 记录前/暂停时用 SDK 蓝点做位置预览
+            aMap.myLocationStyle = MyLocationStyle().apply {
+                myLocationType(MyLocationStyle.LOCATION_TYPE_LOCATION_ROTATE_NO_CENTER)
+                interval(2000)
+            }
+        }
+    }
+
+    // ---- 记录中：显示定位更新 → 重画自绘蓝点 + 跟随镜头/首次自动回中 ----
+    LaunchedEffect(data.lastFixTime) {
+        if (data.state != RecorderState.RECORDING || data.lastLatitude == null) return@LaunchedEffect
+        redrawBlueDot()
+        val target = blueDotLatLng.value ?: return@LaunchedEffect
+        if (followMode.value) {
+            aMap.animateCamera(CameraUpdateFactory.changeLatLng(target))
+        } else if (!hasAutoCentered.value) {
+            hasAutoCentered.value = true
+            aMap.moveCamera(CameraUpdateFactory.newLatLngZoom(target, 17f))
+        }
+    }
     Box(modifier = Modifier.fillMaxSize()) {
         AndroidView(
             factory = { mapView },
@@ -622,9 +713,8 @@ private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
                 val target = blueDotLatLng.value
                     ?: data.points.lastOrNull()?.let { LatLng(it.latitude, it.longitude) }
                 if (target != null) {
-                    // 开启跟随模式：蓝点居中+旋转，手动拖图自动退出
+                    // 开启跟随模式：蓝点居中，手动拖图自动退出
                     followMode.value = true
-                    aMap.myLocationStyle = followStyle
                     aMap.animateCamera(CameraUpdateFactory.changeLatLng(target))
                 } else {
                     Toast.makeText(context, "尚未获取到定位", Toast.LENGTH_SHORT).show()
@@ -644,15 +734,16 @@ private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
 
         // ---- 图层切换：右上角（避开顶部数据面板） ----
         com.example.myfirstapp.ui.components.MapLayerSwitcher(
-            current = layerMode,
-            onSelect = { mode ->
-                layerMode = mode
-                com.example.myfirstapp.ui.components.applyMapLayer(aMap, mode, terrainOverlay)
-            },
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = 130.dp, end = 12.dp)
         )
+    }
+
+    // ---- 图源配置变化（或首次进入）→ 应用底图/叠加层 ----
+    LaunchedEffect(com.example.myfirstapp.mapsources.MapSourceStore.revision) {
+        com.example.myfirstapp.mapsources.MapSourceStore.ensureLoaded(context)
+        com.example.myfirstapp.ui.components.applyMapSources(aMap, overlaysHolder)
     }
 
     // ---- 60 秒无操作 → 自动回到当前定位点（并开启跟随） ----
@@ -662,12 +753,11 @@ private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
             val last = lastGestureAt.value
             // 从未操作过 / 已在跟随中 / 无定位 → 跳过
             if (last == 0L || followMode.value) continue
-            if (System.currentTimeMillis() - last >= 60_000) {
+            if (System.currentTimeMillis() - last >= 30_000) {
                 val target = blueDotLatLng.value
                     ?: data.points.lastOrNull()?.let { LatLng(it.latitude, it.longitude) }
                 if (target != null) {
                     followMode.value = true
-                    aMap.myLocationStyle = followStyle
                     aMap.animateCamera(CameraUpdateFactory.changeLatLng(target))
                 }
             }
@@ -676,19 +766,20 @@ private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
 
     // 轨迹点变化 → 只重画轨迹线（镜头不再自动移动，由定位按钮手动回中）
     LaunchedEffect(data.points.size) {
-        if (data.points.isEmpty()) {
-            aMap.clear()
-            return@LaunchedEffect
+        when {
+            data.points.isEmpty() -> aMap.clear()
+            data.points.size >= 2 -> {
+                aMap.clear()
+                aMap.addPolyline(
+                    PolylineOptions()
+                        .addAll(data.points.map { LatLng(it.latitude, it.longitude) })
+                        .width(12f)
+                        .color(0xFF2E7D32.toInt())
+                )
+            }
         }
-        if (data.points.size >= 2) {
-            aMap.clear()
-            aMap.addPolyline(
-                PolylineOptions()
-                    .addAll(data.points.map { LatLng(it.latitude, it.longitude) })
-                    .width(12f)
-                    .color(0xFF2E7D32.toInt())
-            )
-        }
+        // aMap.clear() 会把自绘蓝点一起清掉 → 记录中立即重画
+        if (data.state == RecorderState.RECORDING && data.lastLatitude != null) redrawBlueDot()
     }
 }
 

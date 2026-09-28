@@ -10,8 +10,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.Route
-import androidx.compose.material.icons.filled.SaveAlt
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,7 +19,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.example.myfirstapp.track.GeoUtils
 import com.example.myfirstapp.track.Track
+import com.example.myfirstapp.track.TrackFileFormat
 import com.example.myfirstapp.track.TrackRepository
+import com.example.myfirstapp.ui.components.TrackExportDialog
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -31,8 +31,8 @@ import java.util.zip.ZipOutputStream
 /**
  * 轨迹库页（两步路"我的轨迹"）：
  * - 本地历史轨迹列表，点击查看详情/回放
- * - 支持从文件导入 GPX
- * - 支持导出：单条（分享 / 另存为）+ 全部打包导出
+ * - 支持从文件导入轨迹（GPX / KML / KMZ，自动识别格式）
+ * - 支持导出：单条（GPX / KML 轨迹 / KML 路径 / KMZ，分享或另存）+ 全部打包导出
  */
 @Composable
 fun TrackHistoryScreen(onOpenTrack: (String) -> Unit) {
@@ -41,24 +41,25 @@ fun TrackHistoryScreen(onOpenTrack: (String) -> Unit) {
     var tracks by remember { mutableStateOf(repo.list()) }
     var message by remember { mutableStateOf<String?>(null) }
 
-    // 当前正在导出的轨迹（弹窗用）
+    // 当前正在导出的轨迹（弹窗用）+ 另存时使用的格式
     var exportingTrack by remember { mutableStateOf<Track?>(null) }
+    var saveAsFormat by remember { mutableStateOf(TrackFileFormat.GPX) }
 
-    /** 分享一个 GPX 文件 */
-    fun shareGpx(track: Track) {
+    /** 分享一个轨迹文件（格式由导出弹窗选择） */
+    fun shareTrack(track: Track, format: TrackFileFormat) {
         runCatching {
-            val file = repo.exportGpx(track)
+            val file = repo.exportTrack(track, format)
             val uri = FileProvider.getUriForFile(
                 context, "${context.packageName}.fileprovider", file
             )
             context.startActivity(
                 Intent.createChooser(
                     Intent(Intent.ACTION_SEND).apply {
-                        type = "application/gpx+xml"
+                        type = format.mimeType
                         putExtra(Intent.EXTRA_STREAM, uri)
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     },
-                    "分享轨迹 GPX"
+                    "分享轨迹（${format.label}）"
                 )
             )
         }.onFailure { message = "导出失败：${it.message}" }
@@ -92,30 +93,32 @@ fun TrackHistoryScreen(onOpenTrack: (String) -> Unit) {
         }.onFailure { message = "导出失败：${it.message}" }
     }
 
-    // 另存为：系统文件选择器让用户指定保存位置
+    // 另存为：系统文件选择器让用户指定保存位置（格式可变，mime 用 */*）
     val saveAsLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/gpx+xml")
+        ActivityResultContracts.CreateDocument("*/*")
     ) { uri ->
         val track = exportingTrack
         if (uri != null && track != null) {
+            val fmt = saveAsFormat
             runCatching {
-                val gpx = repo.exportGpx(track)
+                val file = repo.exportTrack(track, fmt)
                 context.contentResolver.openOutputStream(uri)?.use { out ->
-                    gpx.inputStream().use { it.copyTo(out) }
+                    file.inputStream().use { it.copyTo(out) }
                 }
-                message = "已保存：${track.name}.gpx"
+                message = "已保存：${track.name}.${fmt.extension}"
             }.onFailure { message = "保存失败：${it.message}" }
         }
         exportingTrack = null
     }
 
-    // GPX 导入
+    // 轨迹导入（GPX / KML / KMZ 自动识别）
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            val track = repo.importGpx(context, uri)
-            message = if (track != null) "导入成功：${track.name}" else "导入失败：文件不是有效的 GPX 轨迹"
+            val track = repo.importTrack(context, uri)
+            message = if (track != null) "导入成功：${track.name}"
+            else "导入失败：不是有效的轨迹文件（支持 GPX / KML / KMZ）"
             tracks = repo.list()
         }
     }
@@ -127,39 +130,18 @@ fun TrackHistoryScreen(onOpenTrack: (String) -> Unit) {
         }
     }
 
-    // 单条导出弹窗
+    // 单条导出弹窗（选格式 + 分享/另存）
     exportingTrack?.let { track ->
-        AlertDialog(
-            onDismissRequest = { exportingTrack = null },
-            title = { Text("导出「${track.name}」") },
-            text = {
-                Column {
-                    TextButton(
-                        onClick = {
-                            exportingTrack = null
-                            shareGpx(track)
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Share, null, Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("分享 GPX 文件")
-                    }
-                    TextButton(
-                        onClick = {
-                            saveAsLauncher.launch("${track.name}.gpx")
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.SaveAlt, null, Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("另存到指定位置")
-                    }
-                }
+        TrackExportDialog(
+            trackName = track.name,
+            onDismiss = { exportingTrack = null },
+            onShare = { format ->
+                exportingTrack = null
+                shareTrack(track, format)
             },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { exportingTrack = null }) { Text("取消") }
+            onSaveAs = { format ->
+                saveAsFormat = format
+                saveAsLauncher.launch("${track.name}.${format.extension}")
             }
         )
     }
@@ -170,14 +152,14 @@ fun TrackHistoryScreen(onOpenTrack: (String) -> Unit) {
                 Icon(Icons.Default.Route, null, Modifier.size(64.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(12.dp))
-                Text("还没有轨迹记录\n去「运动」页开始第一条，或导入 GPX",
+                Text("还没有轨迹记录\n去「运动」页开始第一条，或导入轨迹",
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(16.dp))
                 OutlinedButton(onClick = {
                     importLauncher.launch(arrayOf("*/*"))
                 }) {
                     Icon(Icons.Default.IosShare, null, Modifier.size(18.dp))
-                    Text("  导入 GPX")
+                    Text("  导入轨迹")
                 }
             }
         }
@@ -196,7 +178,7 @@ fun TrackHistoryScreen(onOpenTrack: (String) -> Unit) {
                         modifier = Modifier.weight(1f)
                     ) {
                         Icon(Icons.Default.IosShare, null, Modifier.size(18.dp))
-                        Text("  导入 GPX")
+                        Text("  导入轨迹")
                     }
                     OutlinedButton(
                         onClick = { exportAllAsZip() },
