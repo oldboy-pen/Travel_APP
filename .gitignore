@@ -1,0 +1,25 @@
+# Gradle
+.gradle/
+build/
+app/build/
+
+# IDE
+.idea/
+.kotlin/
+
+# 本机配置（SDK 路径等）
+local.properties
+
+# 调试残留
+bad.mp4
+ui_dump*.xml
+*.kml
+
+# 签名与原生构建
+*.jks
+*.keystore
+.cxx/
+
+# 系统文件
+.DS_Store
+Thumbs.db
