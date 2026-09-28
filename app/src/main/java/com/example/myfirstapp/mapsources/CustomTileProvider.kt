@@ -34,12 +34,15 @@ class CustomTileProvider(
 ) : TileProvider {
 
     companion object {
+        private const val TAG = "CustomTileProvider"
         private const val TILE = 256
         private const val GRID_STEP = 16          // 网格点间距（像素）
         private const val N_GRID = TILE / GRID_STEP + 1
 
-        /** 源瓦片像素缓存（全图源共享）：key = "sourceId:z:x:y" */
-        private val tileCache = object : LruCache<String, IntArray>(32) {
+        /** 源瓦片像素缓存（全图源共享）：key = "sourceId:z:x:y"。
+         *  sizeOf 按 KB 计（256×256×4 ≈ 256KB/张），maxSize 16MB ≈ 64 张。
+         *  注意 maxSize 必须远大于单张 KB 数，否则 put 即被逐出、缓存完全失效。 */
+        private val tileCache = object : LruCache<String, IntArray>(16 * 1024) {
             override fun sizeOf(key: String, value: IntArray) = value.size / 1024 // KB
         }
     }
@@ -55,6 +58,8 @@ class CustomTileProvider(
                 TileCrs.WGS84, TileCrs.BD09 -> reprojected(x, y, zoom)
             }
         } catch (t: Throwable) {
+            // 失败打日志便于真机排查（图源空白时过滤 "TileProvider" 即可看到具体原因）
+            android.util.Log.w(TAG, "tile fail id=${source.id} z=$zoom x=$x y=$y: ${t}")
             TileProvider.NO_TILE
         }
     }
@@ -197,26 +202,41 @@ class CustomTileProvider(
 
     // ==================== 网络下载 ====================
 
-    private fun download(url: String): ByteArray? = runCatching {
-        val conn = URL(url).openConnection() as HttpURLConnection
-        conn.connectTimeout = 10_000
-        conn.readTimeout = 15_000
-        conn.instanceFollowRedirects = true
-        conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
-        try {
-            if (conn.responseCode != 200) return@runCatching null
-            conn.inputStream.use { input ->
-                val bos = ByteArrayOutputStream()
-                val buf = ByteArray(32 * 1024)
-                while (true) {
-                    val n = input.read(buf)
-                    if (n < 0) break
-                    bos.write(buf, 0, n)
+    /**
+     * 下载瓦片：失败自动重试一次（弱网/CDN 偶发 RST 场景明显提升成功率）。
+     * 仍失败时打日志（不抛异常，上层按 NO_TILE 处理显示透明瓦片）。
+     */
+    private fun download(url: String): ByteArray? {
+        repeat(2) { attempt ->
+            val bytes = runCatching {
+                val conn = URL(url).openConnection() as HttpURLConnection
+                conn.connectTimeout = 10_000
+                conn.readTimeout = 15_000
+                conn.instanceFollowRedirects = true
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
+                try {
+                    if (conn.responseCode != 200) {
+                        if (attempt == 1) android.util.Log.w(TAG, "HTTP ${conn.responseCode} $url")
+                        null
+                    } else {
+                        conn.inputStream.use { input ->
+                            val bos = ByteArrayOutputStream()
+                            val buf = ByteArray(32 * 1024)
+                            while (true) {
+                                val n = input.read(buf)
+                                if (n < 0) break
+                                bos.write(buf, 0, n)
+                            }
+                            if (bos.size() == 0) null else bos.toByteArray()
+                        }
+                    }
+                } finally {
+                    conn.disconnect()
                 }
-                if (bos.size() == 0) null else bos.toByteArray()
-            }
-        } finally {
-            conn.disconnect()
+            }.getOrNull()
+            if (bytes != null) return bytes
+            if (attempt == 0) android.util.Log.w(TAG, "download fail, retry: $url")
         }
-    }.getOrNull()
+        return null
+    }
 }

@@ -108,6 +108,12 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                 .padding(16.dp)
         ) {
             Column(Modifier.padding(16.dp)) {
+                // 当前图源署名：切换到底图/叠加层是第三方瓦片时，
+                // 左下角 SDK logo 始终显示「高德地图」，这里明确真正的数据来源
+                com.example.myfirstapp.ui.components.MapAttribution(
+                    floating = false,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
                 Text(
                     "我的位置：${state.locationText ?: "定位中…"}",
                     style = MaterialTheme.typography.bodySmall,

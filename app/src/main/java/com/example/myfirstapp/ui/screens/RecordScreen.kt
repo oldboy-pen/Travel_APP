@@ -291,6 +291,14 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
                 Modifier.padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // 当前图源署名（可点开图层面板）：高德 SDK 的 logo 永远显示「高德地图」，
+                // 叠加腾迅/百度/OSM 瓦片后必须让用户知道真正的数据归属
+                com.example.myfirstapp.ui.components.MapAttribution(
+                    floating = false,
+                    modifier = Modifier
+                        .align(Alignment.Start) // Column 内的水平对齐：Alignment.Horizontal
+                        .padding(bottom = 8.dp)
+                )
                 Text(
                     when {
                         data.state == RecorderState.RECORDING && data.locationError != null ->
@@ -732,11 +740,21 @@ private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
             )
         }
 
-        // ---- 图层切换：右上角（避开顶部数据面板） ----
+        // ---- 当前图源署名：贴在 SDK 自带「高德地图」logo 右侧（记录/暂停时会贴近底部控制卡）----
+        com.example.myfirstapp.ui.components.MapAttribution(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 84.dp, bottom = 4.dp)
+        )
+
+        // ---- 图层切换：右上角（避开顶部数据面板）----
+        // 运动页底部控制区很高，右侧悬浮面板会被挤压/遮挡 → 用底部弹层，
+        // 带标题栏 X 按钮，且可下拉、点外部、返回键关闭，不会再出现"没有关闭按钮"的情况
         com.example.myfirstapp.ui.components.MapLayerSwitcher(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = 130.dp, end = 12.dp)
+                .padding(top = 130.dp, end = 12.dp),
+            asSheet = true
         )
     }
 

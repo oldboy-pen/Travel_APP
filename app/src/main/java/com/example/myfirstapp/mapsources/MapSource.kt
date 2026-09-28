@@ -27,6 +27,7 @@ enum class TileCrs(val label: String) {
  * @param isOverlay true=半透明叠加层（叠在底图上），false=不透明底图
  * @param needsKey 模板含 {tk}，需在图源管理里配置天地图 Key
  * @param builtin true=内置图源（不可编辑/删除）
+ * @param attribution 版权署名，显示在地图左下角「当前图源」标签上（第三方瓦片合规要求）
  */
 data class MapSource(
     val id: String,
@@ -38,67 +39,76 @@ data class MapSource(
     val maxZoom: Int = 18,
     val isOverlay: Boolean = false,
     val needsKey: Boolean = false,
-    val builtin: Boolean = false
+    val builtin: Boolean = false,
+    val attribution: String = ""
 ) {
     companion object {
         /** 内置图源。id 为 amap.* 的走高德 SDK 原生底图，不下载瓦片 */
         val BUILTINS: List<MapSource> = listOf(
-            MapSource("amap.normal", "高德矢量", "", builtin = true),
-            MapSource("amap.satellite", "高德卫星", "", builtin = true),
-            MapSource("amap.night", "高德夜景", "", builtin = true),
+            MapSource("amap.normal", "高德矢量", "", builtin = true, attribution = "© 高德地图"),
+            MapSource("amap.satellite", "高德卫星", "", builtin = true, attribution = "© 高德地图"),
+            MapSource("amap.night", "高德夜景", "", builtin = true, attribution = "© 高德地图"),
             MapSource(
                 "amap.sat_road", "高德卫星路网", "", builtin = true,
+                attribution = "© 高德地图",
                 isOverlay = false  // 特殊组合：卫星底图+路网标注，applyMapSources 特殊处理
             ),
             MapSource(
                 "tencent.street", "腾讯街道",
                 "https://rt{s}.map.gtimg.com/realtimerender?z={z}&x={x}&y={-y}&style=0&scene=0",
-                subdomains = "0123", crs = TileCrs.GCJ02, minZoom = 3, maxZoom = 19, builtin = true
+                subdomains = "0123", crs = TileCrs.GCJ02, minZoom = 3, maxZoom = 19, builtin = true,
+                attribution = "© 腾讯地图"
             ),
             MapSource(
                 "tencent.satellite", "腾讯卫星",
                 "https://p{s}.map.gtimg.com/sateTiles/{z}/{sx}/{sy}/{x}_{-y}.jpg",
-                subdomains = "0123", crs = TileCrs.GCJ02, minZoom = 3, maxZoom = 19, builtin = true
+                subdomains = "0123", crs = TileCrs.GCJ02, minZoom = 3, maxZoom = 19, builtin = true,
+                attribution = "© 腾讯地图"
             ),
             MapSource(
                 "baidu.street", "百度街道",
-                "https://online{s}.map.bdimg.com/onlinelabel/?qt=tile&x={x}&y={y}&z={z}&styles=pl&scaler=1&p=1",
-                subdomains = "0123", crs = TileCrs.BD09, minZoom = 4, maxZoom = 18, builtin = true
+                // 2024 起官方现行瓦片域名（旧 online*.map.bdimg.com 链路不稳定，部分网络直接 RST）
+                "https://maponline{s}.bdimg.com/tile/?qt=tile&x={x}&y={y}&z={z}&styles=pl&scaler=1&p=1",
+                subdomains = "0123", crs = TileCrs.BD09, minZoom = 4, maxZoom = 18, builtin = true,
+                attribution = "© 百度地图"
             ),
             MapSource(
                 "baidu.satellite", "百度卫星",
+                // shangetu 老接口实测仍可用；官方新 starpic 接口参数未公开，暂不切换
                 "https://shangetu{s}.map.bdimg.com/it/u=x={x};y={y};z={z};v=009;type=sate&fm=46",
-                subdomains = "0123", crs = TileCrs.BD09, minZoom = 4, maxZoom = 18, builtin = true
+                subdomains = "0123", crs = TileCrs.BD09, minZoom = 4, maxZoom = 18, builtin = true,
+                attribution = "© 百度地图"
             ),
             MapSource(
                 "tdt.vec", "天地图矢量",
                 "https://t{s}.tianditu.gov.cn/DataServer?T=vec_w&x={x}&y={y}&l={z}&tk={tk}",
                 subdomains = "01234567", crs = TileCrs.WGS84, minZoom = 3, maxZoom = 18,
-                needsKey = true, builtin = true
+                needsKey = true, builtin = true, attribution = "© 天地图"
             ),
             MapSource(
                 "tdt.img", "天地图卫星",
                 "https://t{s}.tianditu.gov.cn/DataServer?T=img_w&x={x}&y={y}&l={z}&tk={tk}",
                 subdomains = "01234567", crs = TileCrs.WGS84, minZoom = 3, maxZoom = 18,
-                needsKey = true, builtin = true
+                needsKey = true, builtin = true, attribution = "© 天地图"
             ),
             MapSource(
                 "tdt.ter", "天地图地形",
                 "https://t{s}.tianditu.gov.cn/DataServer?T=ter_w&x={x}&y={y}&l={z}&tk={tk}",
                 subdomains = "01234567", crs = TileCrs.WGS84, minZoom = 3, maxZoom = 13,
-                needsKey = true, builtin = true
+                needsKey = true, builtin = true, attribution = "© 天地图"
             ),
             MapSource(
                 "tdt.cva", "天地图标注",
                 "https://t{s}.tianditu.gov.cn/DataServer?T=cva_w&x={x}&y={y}&l={z}&tk={tk}",
                 subdomains = "01234567", crs = TileCrs.WGS84, minZoom = 3, maxZoom = 18,
-                isOverlay = true, needsKey = true, builtin = true
+                isOverlay = true, needsKey = true, builtin = true, attribution = "© 天地图"
             ),
             // 等高线：OpenTopoMap（国内网络不可达，保留；后续可换天地图 ter）
             MapSource(
                 "opentopomap", "等高线(OpenTopoMap)",
                 "https://tile.opentopomap.org/{z}/{x}/{y}.png",
-                crs = TileCrs.WGS84, minZoom = 3, maxZoom = 17, isOverlay = true, builtin = true
+                crs = TileCrs.WGS84, minZoom = 3, maxZoom = 17, isOverlay = true, builtin = true,
+                attribution = "© OpenStreetMap contributors, SRTM"
             )
         )
 

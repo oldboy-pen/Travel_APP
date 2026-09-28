@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material3.*
@@ -20,11 +21,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amap.api.maps.AMap
@@ -127,9 +130,19 @@ fun previewOf(source: MapSource): Int? = when (source.id) {
  * 图层切换控件：右上角小按钮展开「缩略图+名称」卡片网格（图上文下），
  * 分底图/叠加层两组，底部图源管理入口。
  * 选择状态存 MapSourceStore（全局共享、持久化，三个地图页一致）。
+ *
+ * @param panelMaxHeight 面板内容区最大高度。内容超过即在内部滚动，
+ *                       避免整块面板把"关闭"按钮顶出屏幕（格子多了原本会超出一屏）。
+ * @param asSheet true=用底部弹层展开（运动页用：底部控制区很高，右侧悬浮面板会被遮挡/挤走，
+ *                弹层可下拉、点外部、返回键关闭，永远有关闭入口）。
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MapLayerSwitcher(modifier: Modifier = Modifier) {
+fun MapLayerSwitcher(
+    modifier: Modifier = Modifier,
+    panelMaxHeight: Dp = 340.dp,
+    asSheet: Boolean = false
+) {
     val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
     var showManager by remember { mutableStateOf(false) }
@@ -138,40 +151,19 @@ fun MapLayerSwitcher(modifier: Modifier = Modifier) {
         modifier = modifier,
         horizontalAlignment = Alignment.End
     ) {
-        if (expanded) {
-            Column(
-                modifier = Modifier
-                    .width(272.dp)
-                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp))
-                    .padding(10.dp)
+        if (expanded && !asSheet) {
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 2.dp,
+                shadowElevation = 4.dp,
+                modifier = Modifier.width(272.dp)
             ) {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    SectionLabel("底图")
-                    SourceGrid(
-                        sources = MapSourceStore.allBases(),
-                        selectedId = MapSourceStore.activeBaseId
-                    ) { id -> id?.let { MapSourceStore.selectBase(it) } }
-
-                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                    SectionLabel("叠加层")
-                    SourceGrid(
-                        sources = listOf<MapSource?>(null) + MapSourceStore.allOverlays(),
-                        selectedId = MapSourceStore.activeOverlayId
-                    ) { MapSourceStore.selectOverlay(it) }
-
-                    HorizontalDivider(Modifier.padding(vertical = 6.dp))
-                    Text(
-                        "管理图源…",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .clickable {
-                                expanded = false
-                                showManager = true
-                            }
-                            .padding(horizontal = 4.dp, vertical = 4.dp)
-                    )
-                }
+                LayerPanelContent(
+                    maxBodyHeight = panelMaxHeight,
+                    onManage = { expanded = false; showManager = true },
+                    onClose = { expanded = false }
+                )
             }
             Spacer(Modifier.height(6.dp))
         }
@@ -181,9 +173,23 @@ fun MapLayerSwitcher(modifier: Modifier = Modifier) {
             containerColor = Color.White
         ) {
             Icon(
-                if (expanded) Icons.Default.Clear else Icons.Default.Layers,
-                contentDescription = "切换图层",
+                if (expanded && !asSheet) Icons.Default.Close else Icons.Default.Layers,
+                contentDescription = if (expanded && !asSheet) "关闭图层面板" else "切换图层",
                 tint = Color(0xFF2E7D32)
+            )
+        }
+    }
+
+    // 底部弹层模式（运动页）
+    if (asSheet && expanded) {
+        ModalBottomSheet(onDismissRequest = { expanded = false }) {
+            LayerPanelContent(
+                maxBodyHeight = (LocalConfiguration.current.screenHeightDp * 0.55f).dp,
+                onManage = { expanded = false; showManager = true },
+                onClose = { expanded = false },
+                modifier = Modifier
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .padding(bottom = 12.dp)
             )
         }
     }
@@ -194,6 +200,86 @@ fun MapLayerSwitcher(modifier: Modifier = Modifier) {
 
     // 首次进入也确保 store 已加载（页面未调用 ensureLoaded 时兜底）
     LaunchedEffect(Unit) { MapSourceStore.ensureLoaded(context) }
+}
+
+/**
+ * 面板内容：顶部固定标题栏（含关闭按钮）+ 可滚动的内容区 + 底部操作栏。
+ * 标题栏不参与滚动 → 无论内容滚到哪里，关闭按钮始终可见。
+ */
+@Composable
+fun LayerPanelContent(
+    maxBodyHeight: Dp,
+    onManage: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        // ---- 标题栏：标题 + 关闭（固定，不随内容滚动）----
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 10.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Default.Layers,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "地图图层",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(onClick = onClose, modifier = Modifier.size(40.dp)) {
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = "关闭图层面板",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        HorizontalDivider()
+
+        // ---- 内容区：高度封顶 + 内部滚动 ----
+        Column(
+            modifier = Modifier
+                .heightIn(max = maxBodyHeight)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 10.dp, vertical = 8.dp)
+        ) {
+            SectionLabel("底图")
+            SourceGrid(
+                sources = MapSourceStore.allBases(),
+                selectedId = MapSourceStore.activeBaseId
+            ) { id -> id?.let { MapSourceStore.selectBase(it) } }
+
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            SectionLabel("叠加层")
+            SourceGrid(
+                sources = listOf<MapSource?>(null) + MapSourceStore.allOverlays(),
+                selectedId = MapSourceStore.activeOverlayId
+            ) { MapSourceStore.selectOverlay(it) }
+        }
+
+        // ---- 底部操作栏 ----
+        HorizontalDivider()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextButton(onClick = onManage) { Text("管理图源…", fontSize = 14.sp) }
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = onClose) {
+                Text("关闭", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            }
+        }
+    }
 }
 
 @Composable

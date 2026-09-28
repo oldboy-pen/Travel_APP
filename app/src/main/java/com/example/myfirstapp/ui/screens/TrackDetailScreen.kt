@@ -448,6 +448,13 @@ private fun TrackPlaybackMapView(
                 .align(Alignment.TopEnd)
                 .padding(top = 10.dp, end = 10.dp)
         )
+
+        // 当前图源署名（左下角，紧贴 SDK 自带的「高德地图」logo 右侧）
+        com.example.myfirstapp.ui.components.MapAttribution(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 84.dp, bottom = 6.dp)
+        )
     }
 
     // ---- 图源配置变化（或首次进入）→ 应用底图/叠加层 ----
