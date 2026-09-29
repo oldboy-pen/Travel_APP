@@ -87,6 +87,50 @@ object VoiceAnnouncer {
                 "用时 ${speakDuration(d.durationMillis)}"
     }
 
+    // ==================== 轨迹导航播报文案 ====================
+
+    /** 开导航：全长提示 */
+    fun buildNavStartMessage(totalMeters: Double): String =
+        "开始轨迹导航，全长 ${speakDistance(totalMeters)}"
+
+    /**
+     * 偏离预警：超过阈值时播报，带上偏离方向；[severe] 为真（偏离 > 50 米）
+     * 时额外播报**实际偏离距离**。
+     * 左右按"相对轨迹前进方向"判定（[DeviationSide]），实用价值在于
+     * 密林里看不清路网时，听一句就知道该往哪边切回去。
+     */
+    fun buildDeviationMessage(
+        meters: Double,
+        side: DeviationSide,
+        severe: Boolean = false
+    ): String {
+        val dir = when (side) {
+            DeviationSide.LEFT -> "请向左返回轨迹"
+            DeviationSide.RIGHT -> "请向右返回轨迹"
+            DeviationSide.NONE -> "请返回轨迹"
+        }
+        return if (severe) "注意，已偏离轨迹约 ${meters.toInt()} 米，$dir"
+        else "注意，已偏离轨迹，$dir"
+    }
+
+    /** 途经点临近 */
+    fun buildWaypointMessage(name: String): String = "前方途经点：$name"
+
+    /** 剩余整公里里程碑 */
+    fun buildRemainingKmMessage(km: Int): String = "距终点还有 $km 公里"
+
+    /** 终点临近 */
+    fun buildNearEndMessage(meters: Double): String =
+        "即将到达终点，还有 ${meters.toInt()} 米"
+
+    /** 到达终点 */
+    fun buildArriveMessage(trackName: String): String = "已到达终点，导航结束"
+
+    /** 距离中文读法："800 米" / "5点3 公里"（各 TTS 引擎对阿拉伯小数读法不一） */
+    private fun speakDistance(meters: Double): String =
+        if (meters < 1000) "${meters.toInt()} 米"
+        else "%.1f".format(meters / 1000).replace(".", "点") + " 公里"
+
     /** 小数转中文读法："5.2" → "5点2"（各 TTS 引擎对阿拉伯小数读法不一） */
     private fun speakDecimal(v: Double): String =
         "%.1f".format(v).replace(".", "点")

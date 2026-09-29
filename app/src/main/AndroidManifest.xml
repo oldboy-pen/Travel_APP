@@ -66,6 +66,12 @@
             android:exported="false"
             android:foregroundServiceType="location" />
 
+        <!-- 轨迹导航前台服务：息屏后继续定位并播报偏离预警 -->
+        <service
+            android:name=".track.TrackNavigationService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
         <!-- GPX 文件分享 -->
         <provider
             android:name="androidx.core.content.FileProvider"

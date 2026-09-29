@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.TextFields
@@ -60,11 +61,16 @@ import kotlinx.coroutines.launch
 
 /**
  * 轨迹详情页（回放）：地图绘制完整轨迹 + 途经点，
- * 展示里程/时长/均速/爬升，支持多格式导出（GPX / KML 轨迹 / KML 路径 / KMZ）、删除。
+ * 展示里程/时长/均速/爬升，支持多格式导出（GPX / KML 轨迹 / KML 路径 / KMZ）、删除，
+ * 并可沿本条轨迹发起导航（[onNavigate] → 轨迹导航页）。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TrackDetailScreen(trackId: String, onBack: () -> Unit) {
+fun TrackDetailScreen(
+    trackId: String,
+    onBack: () -> Unit,
+    onNavigate: (String) -> Unit
+) {
     val context = LocalContext.current
     val repo = remember { TrackRepository.get(context) }
     var track by remember { mutableStateOf(repo.load(trackId)) }
@@ -228,6 +234,11 @@ fun TrackDetailScreen(trackId: String, onBack: () -> Unit) {
                     }
                 },
                 actions = {
+                    // 沿本条轨迹导航
+                    IconButton(onClick = { onNavigate(t.id) }) {
+                        Icon(Icons.Default.Navigation, "沿此轨迹导航",
+                            tint = MaterialTheme.colorScheme.primary)
+                    }
                     // 3D 运动视频：倾斜视角沿轨迹飞行 + 实时数据字幕，导出 MP4
                     IconButton(
                         onClick = { startVideoExport() },
@@ -274,6 +285,22 @@ fun TrackDetailScreen(trackId: String, onBack: () -> Unit) {
                 )
                 DetailStat("%.0f 米".format(t.climbMeters), "累计爬升")
             }
+
+            // ---- 沿本条轨迹导航：进入导航页 ----
+            Button(
+                onClick = { onNavigate(t.id) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+            ) {
+                Icon(
+                    Icons.Default.Navigation, null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text("沿此轨迹导航")
+            }
+
             HorizontalDivider(Modifier.padding(horizontal = 16.dp))
 
             // ---- 途经点列表 ----

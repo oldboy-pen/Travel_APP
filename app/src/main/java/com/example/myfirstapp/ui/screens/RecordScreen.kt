@@ -12,12 +12,15 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.Image
@@ -65,10 +68,14 @@ import com.example.myfirstapp.track.TrackRepository
  * - 实时数据面板：距离、时长、均速、当前速度、累计爬升、GPS信号
  * - 地图实时绘制轨迹线
  * - 记录中可打"途经点"
+ * - 空闲态可选择一条已保存轨迹进入导航（沿轨迹行进）
  * - 结束后保存到轨迹库并跳转详情
  */
 @Composable
-fun RecordScreen(onTrackSaved: (String) -> Unit) {
+fun RecordScreen(
+    onTrackSaved: (String) -> Unit,
+    onNavigate: (String) -> Unit
+) {
     val context = LocalContext.current
     val data by TrackRecorder.data.collectAsStateWithLifecycle()
     var noteText by remember { mutableStateOf("") }
@@ -81,6 +88,25 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
     // 拍照 / 相册选择弹窗 + 相机输出 Uri
     var showPhotoSourceDialog by remember { mutableStateOf(false) }
     var cameraOutputUri by remember { mutableStateOf<Uri?>(null) }
+    // ---- 轨迹导航：弹窗列出已保存轨迹，选一条开始导航（记录中需先结束）----
+    var showNavTrackPicker by remember { mutableStateOf(false) }
+    var navTracks by remember { mutableStateOf<List<com.example.myfirstapp.track.Track>>(emptyList()) }
+
+    // 每次打开选择器重新读一次轨迹库（可能刚记录完新轨迹）
+    LaunchedEffect(showNavTrackPicker) {
+        if (!showNavTrackPicker) return@LaunchedEffect
+        navTracks = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            TrackRepository.get(context).list().filter { it.points.size >= 2 }
+        }
+    }
+
+    fun openNavigationPicker() {
+        if (data.state == RecorderState.IDLE) {
+            showNavTrackPicker = true
+        } else {
+            Toast.makeText(context, "请先结束当前记录，再进行轨迹导航", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     // 底部控制面板：进入运动页时默认折叠到屏幕边缘，点按抓手展开
     var bottomPanelCollapsed by remember { mutableStateOf(true) }
@@ -272,7 +298,11 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
 
     Box(Modifier.fillMaxSize()) {
         // ---- 地图：跟随蓝点 + 实时轨迹线 ----
-        TrackingMapView(data, bottomPanelCollapsed)
+        TrackingMapView(
+            data = data,
+            bottomPanelCollapsed = bottomPanelCollapsed,
+            onOpenNavigation = { openNavigationPicker() }
+        )
 
         // ---- 数据条：记录中/暂停时显示在屏幕最底部（空闲态隐藏）----
         AnimatedVisibility(
@@ -425,12 +455,31 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     when (data.state) {
-                        RecorderState.IDLE -> Button(
-                            onClick = { showActivitySelector = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                        RecorderState.IDLE -> Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Icon(Icons.Default.PlayArrow, null)
-                            Text("开始记录", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Button(
+                                onClick = { showActivitySelector = true },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                            ) {
+                                Icon(Icons.Default.PlayArrow, null)
+                                Spacer(Modifier.width(6.dp))
+                                Text("开始记录", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            }
+                            // 沿已保存的轨迹行进（导航）
+                            OutlinedButton(
+                                onClick = { openNavigationPicker() },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    Icons.Default.Navigation, null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text("轨迹导航", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                            }
                         }
 
                         RecorderState.RECORDING -> Column {
@@ -588,6 +637,18 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
             )
         }
 
+        // ---- 轨迹导航：选择要沿哪条已保存轨迹行进 ----
+        if (showNavTrackPicker) {
+            NavigationTrackPickerDialog(
+                tracks = navTracks,
+                onDismiss = { showNavTrackPicker = false },
+                onPick = { id ->
+                    showNavTrackPicker = false
+                    onNavigate(id)
+                }
+            )
+        }
+
         if (showActivitySelector) {
             AlertDialog(
                 onDismissRequest = { showActivitySelector = false },
@@ -666,6 +727,68 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
     }
 }
 
+/**
+ * 导航轨迹选择器：列出轨迹库里可导航的轨迹（≥2 个点），点一条即进入导航页。
+ * 列表可能很长，故限制高度并可滚动。
+ */
+@Composable
+private fun NavigationTrackPickerDialog(
+    tracks: List<com.example.myfirstapp.track.Track>,
+    onDismiss: () -> Unit,
+    onPick: (String) -> Unit
+) {
+    val dateFmt = remember {
+        java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("选择导航轨迹") },
+        text = {
+            if (tracks.isEmpty()) {
+                Text(
+                    "暂无可导航的轨迹（轨迹至少需要 2 个定位点）",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 380.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    tracks.forEach { t ->
+                        Surface(
+                            onClick = { onPick(t.id) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant
+                        ) {
+                            Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                                Text(t.name, fontWeight = FontWeight.Bold, maxLines = 1)
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    "${GeoUtils.formatDistance(t.distanceMeters)} · " +
+                                            "${dateFmt.format(java.util.Date(t.startTime))} · " +
+                                            "${t.points.size} 个点",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        }
+    )
+}
+
 /** 结束记录：轨迹太少提示，正常则保存并跳详情 */
 private fun finishRecording(context: Context, onTrackSaved: (String) -> Unit) {
     val track = TrackRecorder.stop()
@@ -689,7 +812,8 @@ private fun finishRecording(context: Context, onTrackSaved: (String) -> Unit) {
 @Composable
 private fun TrackingMapView(
     data: com.example.myfirstapp.track.RecordingData,
-    bottomPanelCollapsed: Boolean
+    bottomPanelCollapsed: Boolean,
+    onOpenNavigation: () -> Unit
 ) {
     val context = LocalContext.current
     val mapState = rememberMapSurfaceState("record")
@@ -828,6 +952,21 @@ private fun TrackingMapView(
                     if (voiceEnabled) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
                     contentDescription = "语音播报开关",
                     tint = if (voiceEnabled) Color(0xFF2E7D32) else Color.Gray
+                )
+            }
+
+            // ---- 轨迹导航入口：左侧一列第三个（指北针 → 语音 → 导航）----
+            SmallFloatingActionButton(
+                onClick = onOpenNavigation,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 12.dp, top = 136.dp), // 语音按钮（top88+40）下方留 8dp
+                containerColor = Color.White
+            ) {
+                Icon(
+                    Icons.Default.Navigation,
+                    contentDescription = "轨迹导航",
+                    tint = Color(0xFF2E7D32)
                 )
             }
 

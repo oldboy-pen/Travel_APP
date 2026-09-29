@@ -29,6 +29,7 @@ import com.example.myfirstapp.ui.screens.HomeScreen
 import com.example.myfirstapp.ui.screens.LoginScreen
 import com.example.myfirstapp.ui.screens.MapScreen
 import com.example.myfirstapp.ui.screens.RecordScreen
+import com.example.myfirstapp.ui.screens.TrackNavigationScreen
 import com.example.myfirstapp.ui.screens.RegisterScreen
 import com.example.myfirstapp.ui.screens.TrackDetailScreen
 import com.example.myfirstapp.ui.screens.TrackHistoryScreen
@@ -88,7 +89,10 @@ fun AppRoot() {
             composable("home") { HomeScreen(onOpenTrack = { id -> navController.navigateToTrackDetail(id) }) }
             composable("map") { MapScreen() }
             composable("record") {
-                RecordScreen(onTrackSaved = { id -> navController.navigateToTrackDetail(id) })
+                RecordScreen(
+                    onTrackSaved = { id -> navController.navigateToTrackDetail(id) },
+                    onNavigate = { id -> navController.navigate("nav/$id") }
+                )
             }
             composable("history") {
                 TrackHistoryScreen(
@@ -118,7 +122,15 @@ fun AppRoot() {
             composable("track/{id}") { entry ->
                 TrackDetailScreen(
                     trackId = entry.arguments?.getString("id").orEmpty(),
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    onNavigate = { id -> navController.navigate("nav/$id") }
+                )
+            }
+            // 轨迹导航：沿已保存的轨迹行进，偏离超阈值语音预警（全屏页）
+            composable("nav/{id}") { entry ->
+                TrackNavigationScreen(
+                    trackId = entry.arguments?.getString("id").orEmpty(),
+                    onExit = { navController.popBackStack() }
                 )
             }
         }
