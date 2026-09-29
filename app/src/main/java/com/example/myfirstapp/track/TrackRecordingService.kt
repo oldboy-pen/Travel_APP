@@ -1,13 +1,17 @@
 package com.example.myfirstapp.track
 
+import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,21 +24,29 @@ import com.example.myfirstapp.R
  * 轨迹记录前台服务（类似两步路"运动中"的常驻通知）：
  * - 让系统在息屏后不冻结记录进程（foregroundServiceType=location）
  * - 通知栏实时显示 距离/时长，点击回到 App
+ * - 记录期间持有 PARTIAL_WAKE_LOCK：息屏后 CPU 不深睡，GPS/计步持续回调
+ * - 最近任务被划掉后通过 AlarmManager 拉回自己（部分国产 ROM 划卡即杀进程）
  *
  * 职责划分：TrackRecorder 管数据，本类只管"保活 + 通知"。
  */
 class TrackRecordingService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
         super.onCreate()
         createChannel()
-        startForeground(NOTI_ID, buildNotification("正在记录轨迹"))
+        // Android 12+ 若被后台 FGS 启动限制拦下，startForeground 会抛
+        // ForegroundServiceStartNotAllowedException——拉不回就优雅退出，不崩溃
+        runCatching { startForeground(NOTI_ID, buildNotification("正在记录轨迹")) }
+            .onFailure { stopSelf(); return }
 
-        // 订阅记录器状态 → 更新通知
+        // 订阅记录器状态 → 更新通知 + 持有/释放 WakeLock
         scope.launch {
             TrackRecorder.data.collect { d ->
+                if (d.state == RecorderState.RECORDING) acquireWakeLock() else releaseWakeLock()
+
                 val text = when (d.state) {
                     RecorderState.RECORDING ->
                         "${GeoUtils.formatDistance(d.distanceMeters)} · " +
@@ -53,14 +65,84 @@ class TrackRecordingService : Service() {
         }
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // intent == null 说明服务被系统杀死后重建（START_STICKY）。此时若进程是新的，
+        // TrackRecorder 单例状态已丢（必然 IDLE），直接退场避免留下"僵尸通知"。
+        if (intent == null && !TrackRecorder.isRecording) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        return START_STICKY
+    }
+
+    /**
+     * 用户从最近任务划掉 App：原生 Android 不会杀正在运行的前台服务，但部分
+     * 国产 ROM（MIUI/EMUI 等）会连进程一起杀。安排一个 1.5 秒后的闹钟拉回
+     * 本服务——拉得回就续命，拉不回（后台启动限制）也已是尽力而为。
+     */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        if (TrackRecorder.isRecording) scheduleRestart()
+        super.onTaskRemoved(rootIntent)
+    }
 
     override fun onDestroy() {
+        releaseWakeLock()
+        cancelRestart()
         scope.cancel()
         super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    // ---- 后台保活 ----
+
+    /**
+     * 息屏后 CPU 会进入深睡（Doze），哪怕前台服务也可能被限流。
+     * PARTIAL_WAKE_LOCK 只锁 CPU 不点亮屏幕，是轨迹类 App 的标准做法。
+     * setReferenceCounted(false)：onDestroy 统一释放，防止重复 acquire 计数泄漏。
+     */
+    private fun acquireWakeLock() {
+        if (wakeLock?.isHeld == true) return
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        wakeLock = pm.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK, "myfirstapp:trackRecording"
+        ).apply {
+            setReferenceCounted(false)
+            runCatching { acquire() }
+        }
+    }
+
+    private fun releaseWakeLock() {
+        wakeLock?.let { if (it.isHeld) runCatching { it.release() } }
+        wakeLock = null
+    }
+
+    /** 划卡后的"复活闹钟"：用非精确版避开 Android 12+ 的 SCHEDULE_EXACT_ALARM 限制 */
+    private fun scheduleRestart() {
+        val am = getSystemService(ALARM_SERVICE) as AlarmManager
+        val pi = restartPendingIntent() ?: return
+        runCatching {
+            am.setAndAllowWhileIdle(
+                AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                SystemClock.elapsedRealtime() + 1500,
+                pi
+            )
+        }
+    }
+
+    private fun cancelRestart() {
+        val am = getSystemService(ALARM_SERVICE) as AlarmManager
+        restartPendingIntent()?.let { runCatching { am.cancel(it) } }
+    }
+
+    private fun restartPendingIntent(): PendingIntent? {
+        val intent = Intent(this, TrackRecordingService::class.java)
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+            PendingIntent.getForegroundService(this, RESTART_REQ_CODE, intent, flags)
+        else
+            PendingIntent.getService(this, RESTART_REQ_CODE, intent, flags)
+    }
 
     // ---- 通知 ----
 
@@ -93,6 +175,7 @@ class TrackRecordingService : Service() {
     companion object {
         private const val CHANNEL_ID = "track_recording"
         private const val NOTI_ID = 1001
+        private const val RESTART_REQ_CODE = 1002
 
         /** 从 UI 启动本服务 */
         fun start(context: Context) {
@@ -106,6 +189,27 @@ class TrackRecordingService : Service() {
 
         fun stop(context: Context) {
             context.stopService(Intent(context, TrackRecordingService::class.java))
+        }
+
+        /** 是否已在系统"电池优化"白名单中（不受 Doze 限流，国产 ROM 后台杀的主要开关） */
+        fun isIgnoringBatteryOptimizations(context: Context): Boolean {
+            val pm = context.getSystemService(POWER_SERVICE) as PowerManager
+            return pm.isIgnoringBatteryOptimizations(context.packageName)
+        }
+
+        /**
+         * 拉起系统弹窗，请求把本 App 加入电池优化白名单（"不受限制"）。
+         * 需要同时在 manifest 声明 REQUEST_IGNORE_BATTERY_OPTIMIZATIONS 权限。
+         */
+        fun requestIgnoreBatteryOptimizations(context: Context) {
+            runCatching {
+                context.startActivity(
+                    Intent(
+                        android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                        android.net.Uri.parse("package:${context.packageName}")
+                    )
+                )
+            }
         }
     }
 }

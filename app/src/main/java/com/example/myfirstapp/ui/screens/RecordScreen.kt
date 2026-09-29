@@ -74,6 +74,8 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
     var pendingType by remember { mutableStateOf<com.example.myfirstapp.track.WaypointType?>(null) }
     var showActivitySelector by remember { mutableStateOf(false) }
     var selectedActivityType by remember { mutableStateOf(com.example.myfirstapp.track.ActivityType.DEFAULT) }
+    // 后台保活引导：未加入电池白名单时，开始新记录前提示一次
+    var showKeepAliveDialog by remember { mutableStateOf(false) }
     // 拍照 / 相册选择弹窗 + 相机输出 Uri
     var showPhotoSourceDialog by remember { mutableStateOf(false) }
     var cameraOutputUri by remember { mutableStateOf<Uri?>(null) }
@@ -233,6 +235,12 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
         if (!permissionsGranted) {
             Toast.makeText(context, "请先授予定位权限", Toast.LENGTH_SHORT).show()
             return
+        }
+        // 新轨迹开始时：不在电池优化白名单则提示一次（不影响记录继续进行）
+        if (data.state == RecorderState.IDLE &&
+            !TrackRecordingService.isIgnoringBatteryOptimizations(context)
+        ) {
+            showKeepAliveDialog = true
         }
         TrackRecorder.start(context, activityType)
         TrackRecordingService.start(context)
@@ -551,6 +559,31 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
                 }
             }
         }
+        }
+
+        // ---- 后台保活引导：建议加入电池优化白名单（长距离记录防杀后台） ----
+        if (showKeepAliveDialog) {
+            AlertDialog(
+                onDismissRequest = { showKeepAliveDialog = false },
+                title = { Text("建议开启后台保活") },
+                text = {
+                    Text(
+                        "长时间息屏记录（尤其徒步一整天）时，系统省电策略可能冻结或杀掉" +
+                                "本应用，导致轨迹中断。\n\n" +
+                                "建议在接下来的系统弹窗中选择「允许」（不受限制）。\n" +
+                                "小米/华为等机型还建议在 设置→应用管理 中开启「自启动」权限。"
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showKeepAliveDialog = false
+                        TrackRecordingService.requestIgnoreBatteryOptimizations(context)
+                    }) { Text("去设置") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showKeepAliveDialog = false }) { Text("暂不") }
+                }
+            )
         }
 
         if (showActivitySelector) {
