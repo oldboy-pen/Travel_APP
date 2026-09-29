@@ -10,6 +10,8 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
@@ -17,19 +19,27 @@ import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.NoteAdd
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -67,6 +77,13 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
     // 拍照 / 相册选择弹窗 + 相机输出 Uri
     var showPhotoSourceDialog by remember { mutableStateOf(false) }
     var cameraOutputUri by remember { mutableStateOf<Uri?>(null) }
+
+    // 底部控制面板：进入运动页时默认折叠到屏幕边缘，点按抓手展开
+    var bottomPanelCollapsed by remember { mutableStateOf(true) }
+    // 一旦开始/暂停记录，自动展开控制面板，避免丢失「暂停 / 结束」等按钮
+    LaunchedEffect(data.state) {
+        if (data.state != RecorderState.IDLE) bottomPanelCollapsed = false
+    }
 
     /** 统一的媒体标记入库逻辑（相册、拍照、录像、录音共用），explicitType 优先于 pendingType */
     fun addMediaWaypoint(uri: Uri, explicitType: com.example.myfirstapp.track.WaypointType? = null) {
@@ -245,43 +262,120 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
 
     Box(Modifier.fillMaxSize()) {
         // ---- 地图：跟随蓝点 + 实时轨迹线 ----
-        TrackingMapView(data)
+        TrackingMapView(data, bottomPanelCollapsed)
 
-        // ---- 顶部数据面板 ----
-        Card(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .padding(16.dp)
+        // ---- 数据条：记录中/暂停时显示在屏幕最底部（空闲态隐藏）----
+        AnimatedVisibility(
+            visible = data.state != RecorderState.IDLE,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
         ) {
-            Row(
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
             ) {
-                StatCell(GeoUtils.formatDistance(data.distanceMeters), "距离")
-                StatCell(GeoUtils.formatDuration(data.durationMillis), "时长")
-                StatCell(
-                    "%.1f".format(
-                        if (data.durationMillis > 0)
-                            data.distanceMeters / (data.durationMillis / 1000.0) * 3.6 else 0.0
-                    ) + " km/h", "均速"
-                )
-                StatCell("%.0f 米".format(data.climbMeters), "爬升")
-                StatCell("${data.stepCount}", "步数")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    StatCell(GeoUtils.formatDistance(data.distanceMeters), "距离")
+                    StatCell(GeoUtils.formatDuration(data.durationMillis), "时长")
+                    StatCell(
+                        "%.1f".format(
+                            if (data.durationMillis > 0)
+                                data.distanceMeters / (data.durationMillis / 1000.0) * 3.6 else 0.0
+                        ) + " km/h", "均速"
+                    )
+                    StatCell("%.0f 米".format(data.climbMeters), "爬升")
+                    StatCell("${data.stepCount}", "步数")
+                }
             }
         }
 
-        // ---- 底部控制区 ----
-        Card(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(16.dp)
+        // ---- 折叠态：空闲时抓手即「开始记录」按钮，点按直接拉起运动方式选择；
+        //      记录中若被收起，抓手用于展开面板 ----
+        AnimatedVisibility(
+            visible = bottomPanelCollapsed,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
         ) {
-            Column(
+            val isIdle = data.state == RecorderState.IDLE
+            Surface(
+                onClick = {
+                    if (isIdle) showActivitySelector = true
+                    else bottomPanelCollapsed = false
+                },
+                modifier = Modifier
+                    .padding(bottom = if (isIdle) 12.dp else 76.dp)
+                    .height(52.dp)
+                    .widthIn(min = 160.dp, max = 220.dp),
+                shape = RoundedCornerShape(26.dp),
+                color = if (isIdle) Color(0xFF2E7D32) else MaterialTheme.colorScheme.surfaceVariant,
+                tonalElevation = 3.dp,
+                shadowElevation = 6.dp
+            ) {
+                Row(
+                    Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (isIdle) {
+                        Icon(
+                            Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = Color.White
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text("开始记录", fontWeight = FontWeight.Bold, color = Color.White)
+                    } else {
+                        Icon(
+                            Icons.Default.KeyboardArrowUp,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text("展开控制", fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
+
+        // ---- 展开态：完整控制面板 ----
+        AnimatedVisibility(
+            visible = !bottomPanelCollapsed,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 76.dp)
+            ) {
+                // 收起抓手：点按折叠面板至屏幕边缘
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { bottomPanelCollapsed = true }
+                        .padding(top = 4.dp, bottom = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        Modifier
+                            .size(width = 40.dp, height = 4.dp)
+                            .background(
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                RoundedCornerShape(2.dp)
+                            )
+                    )
+                }
+                Column(
                 Modifier.padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -336,7 +430,7 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
                             ) {
                                 RecordQuickActionButton(
                                     label = "文字",
-                                    icon = Icons.Default.TextFields,
+                                    icon = Icons.Default.Image,
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     if (noteText.isBlank()) {
@@ -379,8 +473,8 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
                                     }
                                 }
                                 RecordQuickActionButton(
-                                    label = "设置",
-                                    icon = Icons.Default.Settings,
+                                    label = "备注",
+                                    icon = Icons.Default.NoteAdd,
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     showWaypointSettings = true
@@ -456,6 +550,7 @@ fun RecordScreen(onTrackSaved: (String) -> Unit) {
                     }
                 }
             }
+        }
         }
 
         if (showActivitySelector) {
@@ -557,7 +652,10 @@ private fun finishRecording(context: Context, onTrackSaved: (String) -> Unit) {
  * import 任何一家地图 SDK。
  */
 @Composable
-private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
+private fun TrackingMapView(
+    data: com.example.myfirstapp.track.RecordingData,
+    bottomPanelCollapsed: Boolean
+) {
     val context = LocalContext.current
     val mapState = rememberMapSurfaceState("record")
 
@@ -652,17 +750,18 @@ private fun TrackingMapView(data: com.example.myfirstapp.track.RecordingData) {
             }
 
             // ---- 当前图源署名：贴在 SDK 自带 logo 右侧 ----
+            // 底部面板折叠时上移，避免被折叠抓手遮挡
             com.example.myfirstapp.ui.components.MapAttribution(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(start = 84.dp, bottom = 4.dp)
+                    .padding(start = 84.dp, bottom = if (bottomPanelCollapsed) 72.dp else 4.dp)
             )
 
-            // ---- 图层切换：底部弹层模式（运动页底部控制区很高，悬浮面板会被遮挡）----
+            // ---- 图层切换：固定在右上角（数据条已移至底部，无需让位）----
             com.example.myfirstapp.ui.components.MapLayerSwitcher(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(top = 130.dp, end = 12.dp),
+                    .padding(top = 16.dp, end = 12.dp),
                 asSheet = true
             )
         }
@@ -742,6 +841,7 @@ private fun RecordQuickActionButton(
         onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(14.dp),
+        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
         colors = if (highlight)
             ButtonDefaults.outlinedButtonColors(
                 containerColor = MaterialTheme.colorScheme.errorContainer,
@@ -751,11 +851,16 @@ private fun RecordQuickActionButton(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(vertical = 6.dp)
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Icon(icon, contentDescription = label, Modifier.size(22.dp))
+            Icon(icon, contentDescription = label, Modifier.size(20.dp))
             Spacer(Modifier.height(3.dp))
-            Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }

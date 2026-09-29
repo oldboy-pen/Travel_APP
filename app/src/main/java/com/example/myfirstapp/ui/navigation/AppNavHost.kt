@@ -21,6 +21,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.myfirstapp.track.RecorderState
+import com.example.myfirstapp.track.TrackRecorder
 import com.example.myfirstapp.ui.screens.CloudAuthScreen
 import com.example.myfirstapp.ui.screens.HomeScreen
 import com.example.myfirstapp.ui.screens.LoginScreen
@@ -49,7 +52,9 @@ fun AppRoot() {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-    val showBottomBar = currentRoute in tabs.map { it.route }
+    // 记录中隐藏底部导航栏（「运动」页进入记录态时让出整屏）
+    val isRecording = TrackRecorder.data.collectAsStateWithLifecycle().value.state != RecorderState.IDLE
+    val showBottomBar = currentRoute in tabs.map { it.route } && !(currentRoute == "record" && isRecording)
 
     Scaffold(
         bottomBar = {

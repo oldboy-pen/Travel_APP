@@ -67,6 +67,8 @@ data class MapSource(
     val needsKey: Boolean = false,
     val builtin: Boolean = false,
     val attribution: String = "",
+    /** 自定义请求头（防盗链）：如 Referer / User-Agent / Authorization，下载瓦片时注入 */
+    val headers: Map<String, String> = emptyMap(),
     val nativeType: NativeMapType? = null
 ) {
     /** 这张图由哪家 SDK 渲染；瓦片图源没有原生 SDK，统一回落高德容器 */

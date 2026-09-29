@@ -19,6 +19,7 @@ import hashlib
 import hmac
 import os
 import secrets
+import socket
 import sqlite3
 import time
 from contextlib import contextmanager
@@ -163,8 +164,34 @@ def list_users(limit: int = 50):
     return {"count": len(rows), "users": [public_user(r) for r in rows]}
 
 
+def lan_ip() -> str:
+    """取"出网网卡"的局域网 IP：真机要填的就是它
+
+    不发包，只是让系统查一次路由表，所以不会真的连到 8.8.8.8。
+    机器上一般有多个虚拟网卡（WSL/VMware），直接从 ipconfig 里挑容易挑错。
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.connect(("8.8.8.8", 80))
+        return sock.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+    finally:
+        sock.close()
+
+
 if __name__ == "__main__":
     import uvicorn
 
+    port = 8000
+    print("=" * 62)
+    print("  Travel APP 临时验证服务器")
+    print(f"  接口文档(本机浏览器)  http://127.0.0.1:{port}/docs")
+    print(f"  用户列表(本机浏览器)  http://127.0.0.1:{port}/api/users")
+    print(f"  真机 App 里填        http://{lan_ip()}:{port}")
+    print( "  模拟器 App 里填      http://10.0.2.2:8000")
+    print("  停止服务              Ctrl+C")
+    print("=" * 62)
+
     # 0.0.0.0：让同一局域网内的手机真机能访问
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")

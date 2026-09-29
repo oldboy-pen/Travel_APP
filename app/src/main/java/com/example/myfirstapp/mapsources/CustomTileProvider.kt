@@ -214,6 +214,10 @@ class CustomTileProvider(
                 conn.readTimeout = 15_000
                 conn.instanceFollowRedirects = true
                 conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
+                // 自定义请求头（防盗链）：Referer / 自定义 UA / Authorization 等，覆盖默认值
+                for ((k, v) in source.headers) {
+                    conn.setRequestProperty(k, v)
+                }
                 try {
                     if (conn.responseCode != 200) {
                         if (attempt == 1) android.util.Log.w(TAG, "HTTP ${conn.responseCode} $url")

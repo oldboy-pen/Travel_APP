@@ -70,7 +70,12 @@ object MapSourceStore {
                             maxZoom = o.optInt("maxZoom", 18),
                             isOverlay = o.optBoolean("overlay", false),
                             needsKey = o.optBoolean("needsKey", false),
-                            builtin = false
+                            builtin = false,
+                            headers = runCatching {
+                                val h = o.optJSONObject("headers")
+                                if (h == null) emptyMap() else h.keys().asSequence()
+                                    .associateWith { h.optString(it) }
+                            }.getOrDefault(emptyMap())
                         )
                     )
                 }
@@ -103,6 +108,7 @@ object MapSourceStore {
                         .put("maxZoom", it.maxZoom)
                         .put("overlay", it.isOverlay)
                         .put("needsKey", it.needsKey)
+                        .put("headers", JSONObject().apply { it.headers.forEach { (k, v) -> put(k, v) } })
                 )
             }
             root.put("customSources", arr)
