@@ -79,8 +79,8 @@ class CloudTrackViewModel(app: Application) : AndroidViewModel(app) {
     fun clearMessage() { _message.value = null }
 
     companion object {
-        private const val PREFS = "cloud_server"
-        private const val KEY_URL = "server_url"
+        internal const val PREFS = "cloud_server"
+        internal const val KEY_URL = "server_url"
         const val DEFAULT_URL = "http://10.0.2.2:8000"
     }
 }

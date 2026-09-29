@@ -63,6 +63,46 @@ class CloudTrackApi(private val baseUrl: String) {
         }
     }
 
+    /** 服务器上某条轨迹（跨用户总览），用于首页"热门线路推荐" */
+    data class ServerTrack(
+        val id: String,
+        val name: String,
+        val distanceMeters: Double,
+        val climbMeters: Double,
+        val activityType: String,   // 枚举名，如 HIKING / WALKING
+        val pointCount: Int,
+        val waypointCount: Int,
+        val ownerNickname: String,
+        val updatedAt: Long
+    )
+
+    /**
+     * 拉取服务器上所有用户上传的轨迹（跨账号总览），用于首页"热门线路推荐"。
+     * 走 GET /api/tracks/all，服务器没数据时返回空列表（不抛异常）。
+     */
+    fun listAllTracks(limit: Int = 200): List<ServerTrack> {
+        val obj = get("/api/tracks/all?limit=$limit")
+        val arr = obj.optJSONArray("tracks") ?: return emptyList()
+        return buildList {
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                add(
+                    ServerTrack(
+                        id = o.optString("id"),
+                        name = o.optString("name").takeIf { it.isNotBlank() } ?: "(未命名线路)",
+                        distanceMeters = o.optDouble("distance"),
+                        climbMeters = o.optDouble("climb"),
+                        activityType = o.optString("activityType"),
+                        pointCount = o.optInt("pointCount"),
+                        waypointCount = o.optInt("waypointCount"),
+                        ownerNickname = o.optString("nickname"),
+                        updatedAt = o.optLong("updated_at")
+                    )
+                )
+            }
+        }
+    }
+
     // ---------- 内部实现（与 CloudUserApi 同构） ----------
 
     private fun get(path: String): JSONObject = request(path, "GET", null)

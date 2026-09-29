@@ -10,6 +10,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import java.util.UUID
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -60,6 +61,7 @@ class TrackRepository private constructor(context: Context) {
 
     fun list(): List<Track> =
         dir.listFiles { f -> f.extension == "json" }?.mapNotNull { runCatching { read(it) }.getOrNull() }
+            ?.distinctBy { it.id }
             ?.sortedByDescending { it.startTime } ?: emptyList()
 
     fun load(id: String): Track? = File(dir, "$id.json").takeIf { it.exists() }?.let { runCatching { read(it) }.getOrNull() }
@@ -237,7 +239,7 @@ class TrackRepository private constructor(context: Context) {
         } else 0.0
 
         return Track(
-            id = "import_" + System.currentTimeMillis(),
+            id = "import_" + UUID.randomUUID(),
             name = name,
             startTime = startTime,
             endTime = endTime,

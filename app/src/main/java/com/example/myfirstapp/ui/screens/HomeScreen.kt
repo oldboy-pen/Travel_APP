@@ -14,20 +14,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowRightAlt
+import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -50,14 +54,20 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.myfirstapp.track.ActivityType
 import com.example.myfirstapp.track.GeoUtils
 import com.example.myfirstapp.track.Track
 import com.example.myfirstapp.track.TrackRepository
+import com.example.myfirstapp.ui.home.DailyQuote
+import com.example.myfirstapp.ui.home.HomeViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 private data class PopularRoute(
+    val id: String,
     val name: String,
     val distance: String,
     val difficulty: String,
@@ -66,7 +76,10 @@ private data class PopularRoute(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(onOpenTrack: (String) -> Unit = {}) {
+fun HomeScreen(
+    onOpenTrack: (String) -> Unit = {},
+    vm: HomeViewModel = viewModel()
+) {
     val context = LocalContext.current
     val repo = remember { TrackRepository.get(context) }
     var query by remember { mutableStateOf("") }
@@ -86,14 +99,22 @@ fun HomeScreen(onOpenTrack: (String) -> Unit = {}) {
             }
     }
 
+    // 服务器端"热门线路"：真实存在的轨迹，而非写死的占位名称
+    val serverRoutes by vm.routes.collectAsStateWithLifecycle()
+    val routesLoading by vm.loading.collectAsStateWithLifecycle()
+    val routesError by vm.error.collectAsStateWithLifecycle()
+    val popularRoutes = serverRoutes.map { st ->
+        PopularRoute(
+            id = st.id,
+            name = st.name,
+            distance = GeoUtils.formatDistance(st.distanceMeters),
+            difficulty = difficultyOf(st.climbMeters),
+            tag = activityLabel(st.activityType)
+        )
+    }
+
     val heroTitle = if (allTracks.isNotEmpty()) allTracks.first().name else "探索新路线"
     val totalDistance = allTracks.sumOf { it.distanceMeters }
-    val popularRoutes = listOf(
-        PopularRoute("青城山环线", "18.4 km", "中等", "热门"),
-        PopularRoute("山海步道", "12.7 km", "轻松", "新开"),
-        PopularRoute("湖边漫游", "8.3 km", "轻松", "周末"),
-        PopularRoute("古镇巡游", "6.9 km", "适中", "精选")
-    )
 
     Scaffold(
         topBar = {
@@ -121,6 +142,10 @@ fun HomeScreen(onOpenTrack: (String) -> Unit = {}) {
                     routeCount = allTracks.size,
                     query = query
                 )
+            }
+
+            item {
+                DailyQuoteCard(quote = DailyQuote.today())
             }
 
             item {
@@ -152,17 +177,27 @@ fun HomeScreen(onOpenTrack: (String) -> Unit = {}) {
                     EmptySearchState()
                 }
             } else {
-                items(filteredTracks.take(5), key = { it.id }) { track ->
+                itemsIndexed(filteredTracks.take(5), key = { index, _ -> "track_$index" }) { _, track ->
                     HomeTrackCard(track = track, query = query, onClick = { onOpenTrack(track.id) })
                 }
             }
 
             item {
-                SectionHeader(title = "热门路线", count = "4")
+                SectionHeader(
+                    title = "热门线路",
+                    count = if (routesLoading) "加载中" else popularRoutes.size.toString()
+                )
             }
 
-            items(popularRoutes) { route ->
-                PopularRouteCard(route = route)
+            when {
+                routesLoading -> item { HotRoutesLoading() }
+                routesError != null -> item {
+                    HotRoutesError(message = routesError!!, onRetry = vm::loadRoutes)
+                }
+                popularRoutes.isEmpty() -> item { HotRoutesEmpty() }
+                else -> itemsIndexed(popularRoutes, key = { index, _ -> "route_$index" }) { _, route ->
+                    PopularRouteCard(route = route)
+                }
             }
         }
     }
@@ -425,6 +460,139 @@ private fun PopularRouteCard(route: PopularRoute) {
     }
 }
 
+// ---------- 每日名言 + 热门线路状态卡 ----------
+
+@Composable
+private fun DailyQuoteCard(quote: DailyQuote.Quote) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Icon(
+                Icons.Default.FormatQuote,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = quote.text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    fontWeight = FontWeight.Medium,
+                    lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * 1.3f
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "—— ${quote.author}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.75f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HotRoutesLoading() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(22.dp),
+                strokeWidth = 2.5.dp,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.width(12.dp))
+            Text(
+                text = "正在从服务器获取热门线路…",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun HotRoutesError(message: String, onRetry: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "热门线路加载失败",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            OutlinedButton(onClick = onRetry) {
+                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("重试")
+            }
+        }
+    }
+}
+
+@Composable
+private fun HotRoutesEmpty() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                Icons.Default.Route,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(42.dp)
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "服务器还没有线路，去记录并同步一条吧",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
 @Composable
 private fun TravelStat(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -477,6 +645,18 @@ private fun formatDate(time: Long): String =
     } else {
         "暂未记录"
     }
+
+/** 根据累计爬升粗略推断线路难度（与徒步/登山的体感一致） */
+private fun difficultyOf(climbMeters: Double): String = when {
+    climbMeters >= 800 -> "困难"
+    climbMeters >= 300 -> "中等"
+    else -> "轻松"
+}
+
+/** 把服务器返回的 activityType 枚举名（如 HIKING）转成中文标签，未知则回退"线路" */
+private fun activityLabel(activityType: String): String =
+    runCatching { ActivityType.valueOf(activityType).label }
+        .getOrElse { "线路" }
 
 @Composable
 private fun highlightText(value: String, query: String): AnnotatedString {
