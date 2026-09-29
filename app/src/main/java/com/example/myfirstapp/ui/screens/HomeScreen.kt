@@ -1,5 +1,6 @@
 package com.example.myfirstapp.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,6 +39,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -103,6 +105,21 @@ fun HomeScreen(
     val serverRoutes by vm.routes.collectAsStateWithLifecycle()
     val routesLoading by vm.loading.collectAsStateWithLifecycle()
     val routesError by vm.error.collectAsStateWithLifecycle()
+    val routeOpening by vm.opening.collectAsStateWithLifecycle()
+    val openedTrackId by vm.openedTrackId.collectAsStateWithLifecycle()
+    val openError by vm.openError.collectAsStateWithLifecycle()
+
+    // 热门线路下载完成 → 跳详情页；失败 → 提示一句
+    LaunchedEffect(openedTrackId) {
+        openedTrackId?.let { id ->
+            onOpenTrack(id)
+            vm.consumeOpenedTrack()
+        }
+    }
+    LaunchedEffect(openError) {
+        openError?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+    }
+
     val popularRoutes = serverRoutes.map { st ->
         PopularRoute(
             id = st.id,
@@ -195,8 +212,17 @@ fun HomeScreen(
                     HotRoutesError(message = routesError!!, onRetry = vm::loadRoutes)
                 }
                 popularRoutes.isEmpty() -> item { HotRoutesEmpty() }
-                else -> itemsIndexed(popularRoutes, key = { index, _ -> "route_$index" }) { _, route ->
-                    PopularRouteCard(route = route)
+                else -> itemsIndexed(serverRoutes, key = { index, _ -> "route_$index" }) { _, st ->
+                    PopularRouteCard(
+                        route = PopularRoute(
+                            id = st.id,
+                            name = st.name,
+                            distance = GeoUtils.formatDistance(st.distanceMeters),
+                            difficulty = difficultyOf(st.climbMeters),
+                            tag = activityLabel(st.activityType)
+                        ),
+                        onClick = { if (!routeOpening) vm.openRoute(st) }
+                    )
                 }
             }
         }
@@ -407,8 +433,9 @@ private fun HomeTrackCard(track: Track, query: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun PopularRouteCard(route: PopularRoute) {
+private fun PopularRouteCard(route: PopularRoute, onClick: () -> Unit) {
     Card(
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)

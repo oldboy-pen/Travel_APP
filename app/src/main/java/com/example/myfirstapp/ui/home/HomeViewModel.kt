@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.myfirstapp.data.user.CloudTrackApi
 import com.example.myfirstapp.data.user.CloudTrackApi.ServerTrack
 import com.example.myfirstapp.data.user.CloudTrackViewModel
+import com.example.myfirstapp.track.TrackRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,6 +40,17 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    // ---------- 点击热门线路：拉完整轨迹 → 落本地 → 通知 UI 打开详情 ----------
+
+    private val _opening = MutableStateFlow(false)
+    val opening: StateFlow<Boolean> = _opening.asStateFlow()
+
+    private val _openedTrackId = MutableStateFlow<String?>(null)
+    val openedTrackId: StateFlow<String?> = _openedTrackId.asStateFlow()
+
+    private val _openError = MutableStateFlow<String?>(null)
+    val openError: StateFlow<String?> = _openError.asStateFlow()
+
     init {
         loadRoutes()
     }
@@ -65,6 +77,46 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             _routes.value = list
             _error.value = err
         }
+    }
+
+    /**
+     * 点击一条热门线路：从服务器拉完整轨迹 → 存一份到本地 → 通知 UI 按 id 打开详情页。
+     * 之所以落本地：详情页（TrackDetailScreen）是按 id 从 TrackRepository 读的，
+     * 存一份就能直接复用现成的地图渲染与统计展示，不必另做一套云端详情页。
+     */
+    fun openRoute(route: ServerTrack) {
+        if (_opening.value) return          // 下载中忽略重复点击
+        viewModelScope.launch {
+            _opening.value = true
+            _openError.value = null
+            val (id, err) = withContext(Dispatchers.IO) {
+                runCatching {
+                    val repo = TrackRepository.get(getApplication())
+                    // 本地已有（比如自己同步过的那条）就直接打开，省一次网络请求
+                    val local = repo.load(route.id)
+                    if (local != null) {
+                        local.id
+                    } else {
+                        val json = CloudTrackApi(serverUrl).downloadTrack(route.userId, route.id)
+                            ?: error("服务器上没有这条线路的轨迹数据")
+                        val track = repo.parseTrack(json)
+                        repo.save(track)
+                        track.id
+                    }
+                }.fold(
+                    onSuccess = { it to (null as String?) },
+                    onFailure = { (null as String?) to (it.message ?: "打开这条线路失败") }
+                )
+            }
+            _opening.value = false
+            _openError.value = err
+            if (id != null) _openedTrackId.value = id
+        }
+    }
+
+    /** 详情页已打开，清掉这个一次性事件，便于下次点击同类线路再触发 */
+    fun consumeOpenedTrack() {
+        _openedTrackId.value = null
     }
 
     companion object {

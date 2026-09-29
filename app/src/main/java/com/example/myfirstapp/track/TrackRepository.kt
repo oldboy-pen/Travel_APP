@@ -68,8 +68,14 @@ class TrackRepository private constructor(context: Context) {
 
     fun delete(id: String) { File(dir, "$id.json").delete() }
 
-    private fun read(f: File): Track {
-        val json = JSONObject(f.readText())
+    private fun read(f: File): Track = parseTrack(JSONObject(f.readText()))
+
+    /**
+     * 由 JSONObject 还原 Track。
+     * 本地文件与服务器下发的完整轨迹 JSON 结构一致（上传用的就是 toJson），
+     * 所以云端下载的轨迹也能走这里解析。
+     */
+    fun parseTrack(json: JSONObject): Track {
         return Track(
             id = json.getString("id"),
             name = json.getString("name"),

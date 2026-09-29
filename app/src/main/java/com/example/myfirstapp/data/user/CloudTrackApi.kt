@@ -66,6 +66,7 @@ class CloudTrackApi(private val baseUrl: String) {
     /** 服务器上某条轨迹（跨用户总览），用于首页"热门线路推荐" */
     data class ServerTrack(
         val id: String,
+        val userId: String,         // 所属账号，拉取完整轨迹时要带在路径里
         val name: String,
         val distanceMeters: Double,
         val climbMeters: Double,
@@ -89,6 +90,7 @@ class CloudTrackApi(private val baseUrl: String) {
                 add(
                     ServerTrack(
                         id = o.optString("id"),
+                        userId = o.optString("user_id"),
                         name = o.optString("name").takeIf { it.isNotBlank() } ?: "(未命名线路)",
                         distanceMeters = o.optDouble("distance"),
                         climbMeters = o.optDouble("climb"),
@@ -102,6 +104,15 @@ class CloudTrackApi(private val baseUrl: String) {
             }
         }
     }
+
+    /**
+     * 拉取服务器上某条轨迹的完整 JSON（含点位），供首页点击"热门线路"后查看。
+     * 走 GET /api/tracks/{user_id}/{track_id}；结构与 TrackRepository 序列化的一致
+     * （上传用的就是 toJson），可直接交给 TrackRepository.parseTrack 还原成 Track。
+     * 拿不到时返回 null（由调用方决定提示文案）。
+     */
+    fun downloadTrack(userId: String, trackId: String): JSONObject? =
+        get("/api/tracks/$userId/$trackId").optJSONObject("track")
 
     // ---------- 内部实现（与 CloudUserApi 同构） ----------
 
