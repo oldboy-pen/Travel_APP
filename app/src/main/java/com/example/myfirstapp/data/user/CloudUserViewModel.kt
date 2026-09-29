@@ -41,12 +41,14 @@ class CloudUserViewModel(app: Application) : AndroidViewModel(app) {
 
     fun register(username: String, password: String, nickname: String) = runApi {
         val user = it.register(username.trim(), password, nickname.trim())
+        CloudSession.saveUserId(getApplication(), user.id)   // 记住云端身份，供轨迹同步关联
         fetchUsers(it)
         "注册成功：${user.nickname} 已存入服务器（id=${user.id}）"
     }
 
     fun login(username: String, password: String) = runApi {
         val user = it.login(username.trim(), password)
+        CloudSession.saveUserId(getApplication(), user.id)   // 记住云端身份，供轨迹同步关联
         "登录成功：${user.nickname}（id=${user.id}）"
     }
 

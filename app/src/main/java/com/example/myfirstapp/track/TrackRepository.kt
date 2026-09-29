@@ -26,34 +26,36 @@ class TrackRepository private constructor(context: Context) {
     // ---------- 本地存储 ----------
 
     fun save(track: Track) {
-        val json = JSONObject().apply {
-            put("id", track.id)
-            put("name", track.name)
-            put("startTime", track.startTime)
-            put("endTime", track.endTime)
-            put("distance", track.distanceMeters)
-            put("duration", track.durationMillis)
-            put("climb", track.climbMeters)
-            put("activityType", track.activityType.name)
-            put("points", JSONArray(track.points.map { p ->
-                JSONObject().apply {
-                    put("lat", p.latitude); put("lng", p.longitude)
-                    put("t", p.time); put("alt", p.altitude); put("spd", p.speed.toDouble())
-                }
-            }))
-            put("waypoints", JSONArray(track.waypoints.map { w ->
-                JSONObject().apply {
-                    put("name", w.name)
-                    put("lat", w.latitude)
-                    put("lng", w.longitude)
-                    put("t", w.time)
-                    put("type", w.type.name)
-                    put("text", w.text ?: "")
-                    put("mediaUri", w.mediaUri ?: "")
-                }
-            }))
-        }
-        File(dir, "${track.id}.json").writeText(json.toString())
+        File(dir, "${track.id}.json").writeText(toJson(track).toString())
+    }
+
+    /** 序列化轨迹为 JSONObject（与服务器 /api/tracks 接收结构一致，供上传复用） */
+    fun toJson(track: Track): JSONObject = JSONObject().apply {
+        put("id", track.id)
+        put("name", track.name)
+        put("startTime", track.startTime)
+        put("endTime", track.endTime)
+        put("distance", track.distanceMeters)
+        put("duration", track.durationMillis)
+        put("climb", track.climbMeters)
+        put("activityType", track.activityType.name)
+        put("points", JSONArray(track.points.map { p ->
+            JSONObject().apply {
+                put("lat", p.latitude); put("lng", p.longitude)
+                put("t", p.time); put("alt", p.altitude); put("spd", p.speed.toDouble())
+            }
+        }))
+        put("waypoints", JSONArray(track.waypoints.map { w ->
+            JSONObject().apply {
+                put("name", w.name)
+                put("lat", w.latitude)
+                put("lng", w.longitude)
+                put("t", w.time)
+                put("type", w.type.name)
+                put("text", w.text ?: "")
+                put("mediaUri", w.mediaUri ?: "")
+            }
+        }))
     }
 
     fun list(): List<Track> =

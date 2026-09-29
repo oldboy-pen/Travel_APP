@@ -10,6 +10,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.PersonOutline
 import androidx.compose.material.icons.filled.Route
@@ -23,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.myfirstapp.data.user.CloudTrackViewModel
 import com.example.myfirstapp.data.user.UserAccount
 import com.example.myfirstapp.data.user.UserViewModel
 import com.example.myfirstapp.track.GeoUtils
@@ -55,6 +58,10 @@ fun TrackHistoryScreen(
     val repo = remember { TrackRepository.get(context) }
     val userVm: UserViewModel = viewModel()
     val user by userVm.currentUser.collectAsState()
+    val cloudVm: CloudTrackViewModel = viewModel()
+    val syncedIds by cloudVm.syncedIds.collectAsState()
+    val cloudBusy by cloudVm.busy.collectAsState()
+    val cloudMessage by cloudVm.message.collectAsState()
     var tracks by remember { mutableStateOf(repo.list()) }
     var message by remember { mutableStateOf<String?>(null) }
 
@@ -140,10 +147,30 @@ fun TrackHistoryScreen(
         }
     }
 
+    /** 同步全部本地轨迹到云端服务器 */
+    fun syncToCloud() {
+        if (tracks.isEmpty()) {
+            message = "没有可同步的轨迹"
+            return
+        }
+        cloudVm.sync(tracks.map { repo.toJson(it) })
+    }
+
     LaunchedEffect(message) {
         message?.let {
             android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
             message = null
+        }
+    }
+
+    // 进入页面时拉取服务器端已同步的轨迹 id，用于列表标记
+    LaunchedEffect(Unit) { cloudVm.refreshSynced() }
+
+    // 云端同步结果提示
+    LaunchedEffect(cloudMessage) {
+        cloudMessage?.let {
+            android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
+            cloudVm.clearMessage()
         }
     }
 
@@ -232,10 +259,37 @@ fun TrackHistoryScreen(
                         }
                     }
                     Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(
+                            onClick = { syncToCloud() },
+                            enabled = !cloudBusy && tracks.isNotEmpty(),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.CloudUpload, null, Modifier.size(18.dp))
+                            Text(if (cloudBusy) "  同步中…" else "  同步到云端")
+                        }
+                        if (syncedIds.isNotEmpty()) {
+                            Text(
+                                "已同步 ${syncedIds.size} 条",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    if (cloudBusy) {
+                        Spacer(Modifier.height(8.dp))
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+                    Spacer(Modifier.height(8.dp))
                 }
                 items(tracks, key = { it.id }) { track ->
                     TrackCard(
                         track,
+                        synced = syncedIds.contains(track.id),
                         onClick = { onOpenTrack(track.id) },
                         onExport = { exportingTrack = track }
                     )
@@ -312,7 +366,7 @@ private fun UserCard(user: UserAccount?, onOpenAuth: () -> Unit, onLogout: () ->
 }
 
 @Composable
-private fun TrackCard(track: Track, onClick: () -> Unit, onExport: () -> Unit) {
+private fun TrackCard(track: Track, synced: Boolean, onClick: () -> Unit, onExport: () -> Unit) {
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         ListItem(
             headlineContent = { Text(track.name) },
@@ -335,6 +389,14 @@ private fun TrackCard(track: Track, onClick: () -> Unit, onExport: () -> Unit) {
             },
             trailingContent = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (synced) {
+                        Icon(
+                            Icons.Default.CloudDone,
+                            contentDescription = "已同步到云端",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                     if (track.waypoints.isNotEmpty()) {
                         Text(
                             "${track.waypoints.size}个点",
