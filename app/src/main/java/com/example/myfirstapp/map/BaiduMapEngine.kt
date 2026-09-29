@@ -121,12 +121,14 @@ class BaiduMapEngine(context: Context) : MapEngine {
         title: String?,
         anchorU: Float,
         anchorV: Float,
-        zIndex: Float
+        zIndex: Float,
+        rotateDeg: Float
     ) {
         val options = MarkerOptions()
             .position(point.toBaidu())
             .anchor(anchorU, anchorV)
             .zIndex(zIndex.toInt())
+            .rotate(rotateDeg) // 百度：图标顺时针旋转角（float）
         bitmap?.let { options.icon(BitmapDescriptorFactory.fromBitmap(it)) }
         title?.let { options.title(it) }
         overlays += baiduMap.addOverlay(options)

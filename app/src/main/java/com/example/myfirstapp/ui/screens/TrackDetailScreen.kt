@@ -417,8 +417,15 @@ private fun TrackPlaybackMapView(
         state = mapState,
         pageKey = "trackDetail",
         modifier = Modifier.fillMaxSize(),
-        uiSettings = MapUiSettings(),
+        uiSettings = MapUiSettings(), // 指北针用自绘的 PhoneCompass（跟随手机转动），不用 SDK 自带的
         overlay = {
+            // 物理指北针：左上角，跟随手机转动，始终指向真实北方
+            com.example.myfirstapp.ui.components.PhoneCompass(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 10.dp, top = 10.dp)
+            )
+
             // 图层切换：地图右上角
             com.example.myfirstapp.ui.components.MapLayerSwitcher(
                 modifier = Modifier

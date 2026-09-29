@@ -190,12 +190,14 @@ class AMapEngine(context: Context) : MapEngine {
         title: String?,
         anchorU: Float,
         anchorV: Float,
-        zIndex: Float
+        zIndex: Float,
+        rotateDeg: Float
     ) {
         val options = MarkerOptions()
             .position(point.toAmap())
             .anchor(anchorU, anchorV)
             .zIndex(zIndex)
+            .rotateAngle(rotateDeg) // 高德：绕锚点顺时针旋转，默认 0
         bitmap?.let { options.icon(BitmapDescriptorFactory.fromBitmap(it)) }
         title?.let { options.title(it) }
         overlays += aMap.addMarker(options)

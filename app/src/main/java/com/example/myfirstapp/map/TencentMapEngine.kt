@@ -126,12 +126,14 @@ class TencentMapEngine(context: Context) : MapEngine {
         title: String?,
         anchorU: Float,
         anchorV: Float,
-        zIndex: Float
+        zIndex: Float,
+        rotateDeg: Float
     ) {
         val options = MarkerOptions()
             .position(point.toTencent())
             .anchor(anchorU, anchorV)
             .zIndex(zIndex)
+            .rotation(rotateDeg) // 腾讯：从正北方向顺时针旋转
         bitmap?.let { options.icon(BitmapDescriptorFactory.fromBitmap(it)) }
         title?.let { options.title(it) }
         overlays += map.addMarker(options)

@@ -23,6 +23,8 @@ import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
@@ -700,19 +702,34 @@ private fun TrackingMapView(
     val hasAutoCentered = remember { mutableStateOf(false) }
     val lastGestureAt = remember { mutableStateOf(0L) }
 
-    // 自绘蓝点位图：Canvas 画"白边蓝点"（向量图作 Marker 图标在部分机型不显示）
-    val blueDotBitmap: android.graphics.Bitmap = remember {
+    // 自绘"行进方向箭头"位图：尖头朝正上（= 正北 0°），显示时按 GPS bearing
+    // 顺时针旋转（MapEngine.addMarker 的 rotateDeg）。向量图作 Marker 图标在
+    // 部分机型不显示，因此一律用 Canvas 画 Bitmap。
+    val arrowBitmap: android.graphics.Bitmap = remember {
         val density = context.resources.displayMetrics.density
-        val size = (30 * density).toInt()
+        val size = (34 * density).toInt()
         val bmp = android.graphics.Bitmap.createBitmap(
             size, size, android.graphics.Bitmap.Config.ARGB_8888
         )
         val canvas = android.graphics.Canvas(bmp)
+        // 箭头形状：上尖下宽的导航箭头（底部中间内凹，更像"指向"而非三角警示牌）
+        val path = android.graphics.Path().apply {
+            moveTo(size * 0.50f, size * 0.06f)   // 尖端（正北）
+            lineTo(size * 0.86f, size * 0.88f)   // 右下
+            lineTo(size * 0.50f, size * 0.66f)   // 底部内凹点
+            lineTo(size * 0.14f, size * 0.88f)   // 左下
+            close()
+        }
         val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
-        paint.color = 0xFFFFFFFF.toInt()
-        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+        // 先画一圈白边（底层描边），再填蓝色主体，保证在任何底图上都有轮廓
+        paint.style = android.graphics.Paint.Style.FILL
         paint.color = 0xFF1E88E5.toInt()
-        canvas.drawCircle(size / 2f, size / 2f, size / 2f - 3 * density, paint)
+        canvas.drawPath(path, paint)
+        paint.style = android.graphics.Paint.Style.STROKE
+        paint.strokeWidth = 2f * density
+        paint.strokeJoin = android.graphics.Paint.Join.ROUND
+        paint.color = 0xFFFFFFFF.toInt()
+        canvas.drawPath(path, paint)
         bmp
     }
 
@@ -737,7 +754,8 @@ private fun TrackingMapView(
                     fillColor = 0x141E88E5, strokeColor = 0x661E88E5, strokeWidthPx = 2f
                 )
             }
-            engine.addMarker(p, bitmap = blueDotBitmap, zIndex = 10f)
+            // 箭头方向 = GPS 航向角（bearing：正北 0°，顺时针）
+            engine.addMarker(p, bitmap = arrowBitmap, zIndex = 10f, rotateDeg = data.lastBearing)
         }
     }
 
@@ -745,7 +763,7 @@ private fun TrackingMapView(
         state = mapState,
         pageKey = "record",
         modifier = Modifier.fillMaxSize(),
-        uiSettings = MapUiSettings(),   // 不用 SDK 自带的缩放/定位按钮（会被底部面板遮挡）
+        uiSettings = MapUiSettings(),   // 不用 SDK 自带控件（指北针用自绘 PhoneCompass，缩放/定位按钮会被底部面板遮挡）
         onUserGesture = {
             followMode.value = false
             lastGestureAt.value = System.currentTimeMillis()
@@ -758,6 +776,13 @@ private fun TrackingMapView(
             }
         },
         overlay = {
+            // ---- 物理指北针：左上角，跟随手机转动，始终指向真实北方 ----
+            com.example.myfirstapp.ui.components.PhoneCompass(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 12.dp, top = 16.dp)
+            )
+
             // ---- 自绘"回到我的位置"按钮：屏幕右侧垂直居中 ----
             SmallFloatingActionButton(
                 onClick = {
@@ -779,6 +804,30 @@ private fun TrackingMapView(
                     Icons.Default.MyLocation,
                     contentDescription = "回到我的位置",
                     tint = Color(0xFF2E7D32)
+                )
+            }
+
+            // ---- 语音播报开关：左上角、指北针下方。每 1 公里播报 均速/爬升/耗时 ----
+            var voiceEnabled by remember { mutableStateOf(com.example.myfirstapp.track.VoiceAnnouncer.isEnabled(context)) }
+            SmallFloatingActionButton(
+                onClick = {
+                    voiceEnabled = !voiceEnabled
+                    com.example.myfirstapp.track.VoiceAnnouncer.setEnabled(context, voiceEnabled)
+                    Toast.makeText(
+                        context,
+                        if (voiceEnabled) "语音播报已开启（每 1 公里）" else "语音播报已关闭",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 12.dp, top = 88.dp), // 指北针（top16+56）下方留 16dp 间距
+                containerColor = Color.White
+            ) {
+                Icon(
+                    if (voiceEnabled) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
+                    contentDescription = "语音播报开关",
+                    tint = if (voiceEnabled) Color(0xFF2E7D32) else Color.Gray
                 )
             }
 

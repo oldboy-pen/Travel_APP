@@ -69,14 +69,19 @@ interface MapEngine {
     // ==================== 覆盖物 ====================
     /** 画轨迹线。widthPx 为屏幕像素，colorArgb 为 ARGB 值 */
     fun addPolyline(points: List<GeoPoint>, widthPx: Float, colorArgb: Int)
-    /** 打点。bitmap 为空则用 SDK 默认图标 */
+    /**
+     * 打点。bitmap 为空则用 SDK 默认图标。
+     * @param rotateDeg 图标旋转角（度），从正北方向顺时针（与 GPS bearing 同向），
+     *                  用于"箭头指向行进方向"；0 = 不旋转（bitmap 原样朝上）
+     */
     fun addMarker(
         point: GeoPoint,
         bitmap: Bitmap? = null,
         title: String? = null,
         anchorU: Float = 0.5f,
         anchorV: Float = 0.5f,
-        zIndex: Float = 0f
+        zIndex: Float = 0f,
+        rotateDeg: Float = 0f
     )
 
     /** 精度圈 */

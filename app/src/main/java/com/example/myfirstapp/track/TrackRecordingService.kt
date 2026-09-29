@@ -42,10 +42,28 @@ class TrackRecordingService : Service() {
         runCatching { startForeground(NOTI_ID, buildNotification("正在记录轨迹")) }
             .onFailure { stopSelf(); return }
 
-        // 订阅记录器状态 → 更新通知 + 持有/释放 WakeLock
+        // 订阅记录器状态 → 更新通知 + 持有/释放 WakeLock + 整公里语音播报
         scope.launch {
+            VoiceAnnouncer.ensureInit(this@TrackRecordingService) // 提前初始化，等 1km 时引擎已就绪
+            var lastAnnouncedKm = 0
             TrackRecorder.data.collect { d ->
                 if (d.state == RecorderState.RECORDING) acquireWakeLock() else releaseWakeLock()
+
+                // ---- 语音播报：距离每跨过一个整公里报一次（暂停/结束不补报）----
+                when (d.state) {
+                    RecorderState.IDLE -> lastAnnouncedKm = 0 // 新一次记录重新计数
+                    RecorderState.RECORDING -> {
+                        val km = (d.distanceMeters / 1000).toInt()
+                        if (km > lastAnnouncedKm) {
+                            lastAnnouncedKm = km
+                            VoiceAnnouncer.announce(
+                                this@TrackRecordingService,
+                                VoiceAnnouncer.buildKmMessage(d, km)
+                            )
+                        }
+                    }
+                    RecorderState.PAUSED -> Unit
+                }
 
                 val text = when (d.state) {
                     RecorderState.RECORDING ->
@@ -88,6 +106,7 @@ class TrackRecordingService : Service() {
     override fun onDestroy() {
         releaseWakeLock()
         cancelRestart()
+        VoiceAnnouncer.shutdown()
         scope.cancel()
         super.onDestroy()
     }

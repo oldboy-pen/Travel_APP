@@ -136,9 +136,15 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
             state = mapState,
             pageKey = "map",
             modifier = Modifier.fillMaxSize(),
-            uiSettings = MapUiSettings(myLocationButton = true),
+            uiSettings = MapUiSettings(myLocationButton = true), // 指北针用自绘的 PhoneCompass（跟随手机转动），不用 SDK 自带的
             onLongClick = { point -> viewModel.setDestination(point.toLatLng()) },
             overlay = {
+                // 物理指北针：左上角，跟随手机转动，始终指向真实北方
+                com.example.myfirstapp.ui.components.PhoneCompass(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(start = 10.dp, top = 10.dp)
+                )
                 MapLayerSwitcher(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
