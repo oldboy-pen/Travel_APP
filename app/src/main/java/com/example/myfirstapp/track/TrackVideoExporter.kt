@@ -86,9 +86,6 @@ class TrackVideoExporter(private val mapView: TextureMapView, private val track:
     private val fps = 24
     private val totalFrames = (durationSec * fps).roundToInt()
 
-    /** 朝向前瞻距离：取 12 帧的行程，避免镜头朝向抖动，夹在 15~400 米 */
-    private val lookAhead = (total / totalFrames * 12).coerceIn(15.0, 400.0)
-
     /** 飞行高度（缩放级别）按轨迹尺度分档 */
     private val zoom = when {
         total < 3_000 -> 17f
@@ -100,8 +97,11 @@ class TrackVideoExporter(private val mapView: TextureMapView, private val track:
     private class Sample(
         val lat: Double, val lng: Double,
         val time: Long, val alt: Double,
-        val speedKmh: Double, val bearing: Float
+        val speedKmh: Double
     )
+
+    /** 平滑后的镜头关键帧（与帧号 0..totalFrames 对齐）：位置 + 朝向 */
+    private class CamFrame(val lat: Double, val lng: Double, val bearing: Float)
 
     /**
      * 生成 3D 运动视频。
@@ -113,6 +113,9 @@ class TrackVideoExporter(private val mapView: TextureMapView, private val track:
     suspend fun export(outFile: File, onProgress: (Float) -> Unit, restore: () -> Unit): File {
         require(pts.size >= 2) { "轨迹点太少，无法生成视频" }
         require(total > 10.0) { "轨迹距离太短，无法生成视频" }
+
+        // 镜头关键帧预计算：位置 + 朝向双重平滑（防摇晃），逐帧直接取用
+        val cam = buildCamFrames()
 
         val texView = findTextureView(mapView) ?: error("地图渲染视图不可用")
         val srcW = texView.width
@@ -163,13 +166,13 @@ class TrackVideoExporter(private val mapView: TextureMapView, private val track:
                 )
 
                 // 预热：镜头飞到起点姿态，等待首帧瓦片渲染
-                val s0 = sampleAt(0.0)
-                aMap.moveCamera(CameraUpdateFactory.newCameraPosition(cameraPos(s0)))
-                movingMarker.position = LatLng(s0.lat, s0.lng)
+                val c0 = cam[0]
+                aMap.moveCamera(CameraUpdateFactory.newCameraPosition(cameraPos(c0)))
+                movingMarker.position = LatLng(c0.lat, c0.lng)
                 // 相机实况：确认 tilt/bearing 实际生效值（高德 tilt 上限 45°，超限会被丢弃）
                 Log.d(
                     VTAG,
-                    "warmup camera=${aMap.cameraPosition} (asked tilt=$TILT bearing=${s0.bearing})"
+                    "warmup camera=${aMap.cameraPosition} (asked tilt=$TILT bearing=${c0.bearing})"
                 )
                 val warmupDeadline = System.currentTimeMillis() + 8_000
                 while (System.currentTimeMillis() < warmupDeadline) {
@@ -208,9 +211,9 @@ class TrackVideoExporter(private val mapView: TextureMapView, private val track:
                     }
 
                     if (i < totalFrames) {
-                        val sNext = sampleAt(total * ease((i + 1).toDouble() / totalFrames))
-                        aMap.moveCamera(CameraUpdateFactory.newCameraPosition(cameraPos(sNext)))
-                        movingMarker.position = LatLng(sNext.lat, sNext.lng)
+                        val cNext = cam[i + 1]
+                        aMap.moveCamera(CameraUpdateFactory.newCameraPosition(cameraPos(cNext)))
+                        movingMarker.position = LatLng(cNext.lat, cNext.lng)
                         if (i % 60 == 0) {
                             val cp = aMap.cameraPosition
                             Log.d(
@@ -275,7 +278,7 @@ class TrackVideoExporter(private val mapView: TextureMapView, private val track:
                 (pts[i0].longitude + (pts[i1].longitude - pts[i0].longitude) * f)
     }
 
-    /** 里程 d 处的完整状态：坐标/时间/海拔/速度/行进方位角 */
+    /** 里程 d 处的运动数据：坐标/时间/海拔/速度 */
     private fun sampleAt(d: Double): Sample {
         val i1 = segIndex(d)
         val i0 = i1 - 1
@@ -285,16 +288,7 @@ class TrackVideoExporter(private val mapView: TextureMapView, private val track:
         val lng = pts[i0].longitude + (pts[i1].longitude - pts[i0].longitude) * f
         val time = pts[i0].time + ((pts[i1].time - pts[i0].time) * f).toLong()
         val alt = pts[i0].altitude + (pts[i1].altitude - pts[i0].altitude) * f
-
-        // 朝向：看向前方 lookAhead 米处；已到终点则沿用最后一段方向
-        val aheadD = min(d + lookAhead, total)
-        val bearing = if (aheadD > d + 0.5) {
-            val a = posAt(aheadD)
-            bearingDeg(lng, lat, a.second, a.first)
-        } else {
-            bearingDeg(pts[i0].longitude, pts[i0].latitude, pts[i1].longitude, pts[i1].latitude)
-        }
-        return Sample(lat, lng, time, alt, speedAt(i1) * 3.6, bearing)
+        return Sample(lat, lng, time, alt, speedAt(i1) * 3.6)
     }
 
     /** idx 附近 ±3 点的平滑速度：优先 GPS 多普勒测速，无效时退回段速度 */
@@ -323,8 +317,86 @@ class TrackVideoExporter(private val mapView: TextureMapView, private val track:
         return ((Math.toDegrees(atan2(y, x)) + 360.0) % 360.0).toFloat()
     }
 
-    private fun cameraPos(s: Sample) =
-        CameraPosition(LatLng(s.lat, s.lng), zoom, TILT, s.bearing)
+    /**
+     * 预计算全部镜头关键帧并做双重平滑，修复镜头摇晃：
+     *
+     * 1. 位置平滑：原始轨迹含 GPS 抖动，镜头逐帧贴轨迹走会左右"画龙"。
+     *    对逐帧采样点做一趟 5 点加权窗口 [1,4,6,4,1] 滤波（端点截断处理），
+     *    抖动被平均掉、真实弯形保留；
+     * 2. 朝向平滑：摇晃主因——倾角 45° 下朝向每帧 2~3° 的抖动都会放大成
+     *    整个画面摆动。朝向取"平滑路径上当前帧 → 前方 LOOKAHEAD_FRAMES 帧"
+     *    的方向（镜头快时前瞻米数自然变长），再经双向 EMA（最短弧插值）
+     *    滤掉折返抖动；单向 EMA 有相位滞后，前向+后向取平均后急弯响应依然及时。
+     */
+    private fun buildCamFrames(): Array<CamFrame> {
+        val n = totalFrames + 1
+        val lat = DoubleArray(n)
+        val lng = DoubleArray(n)
+        for (i in 0 until n) {
+            val p = posAt(total * ease(i.toDouble() / totalFrames))
+            lat[i] = p.first
+            lng[i] = p.second
+        }
+
+        // ---- 位置平滑：5 点加权窗口 ----
+        val w = doubleArrayOf(1.0, 4.0, 6.0, 4.0, 1.0)
+        val sLat = DoubleArray(n)
+        val sLng = DoubleArray(n)
+        for (i in 0 until n) {
+            var sw = 0.0
+            var a = 0.0
+            var b = 0.0
+            for (k in -2..2) {
+                val j = (i + k).coerceIn(0, n - 1)
+                sw += w[k + 2]
+                a += lat[j] * w[k + 2]
+                b += lng[j] * w[k + 2]
+            }
+            sLat[i] = a / sw
+            sLng[i] = b / sw
+        }
+        System.arraycopy(sLat, 0, lat, 0, n)
+        System.arraycopy(sLng, 0, lng, 0, n)
+
+        // ---- 朝向：平滑路径上向前看 LOOKAHEAD_FRAMES 帧 ----
+        val rawBrg = FloatArray(n)
+        for (i in 0 until n) {
+            val j = min(i + LOOKAHEAD_FRAMES, n - 1)
+            rawBrg[i] = if (j > i) {
+                bearingDeg(lng[i], lat[i], lng[j], lat[j])
+            } else {
+                bearingDeg(lng[n - 2], lat[n - 2], lng[n - 1], lat[n - 1])
+            }
+        }
+
+        // ---- 朝向双向 EMA（最短弧插值，避免 359°→1° 绕远路）----
+        val alpha = 0.15f
+        val fwd = FloatArray(n)
+        var acc = rawBrg[0]
+        fwd[0] = acc
+        for (i in 1 until n) {
+            acc += shortestArc(acc, rawBrg[i]) * alpha
+            fwd[i] = acc
+        }
+        val bwd = FloatArray(n)
+        acc = rawBrg[n - 1]
+        bwd[n - 1] = acc
+        for (i in n - 2 downTo 0) {
+            acc += shortestArc(acc, rawBrg[i]) * alpha
+            bwd[i] = acc
+        }
+        return Array(n) { i ->
+            val b = (fwd[i] + shortestArc(fwd[i], bwd[i]) * 0.5f + 360f) % 360f
+            CamFrame(lat[i], lng[i], b)
+        }
+    }
+
+    /** 最短弧角度差（结果 -180°~180°），用于朝向插值不走远路 */
+    private fun shortestArc(from: Float, to: Float): Float =
+        ((to - from + 540f) % 360f + 360f) % 360f - 180f
+
+    private fun cameraPos(c: CamFrame) =
+        CameraPosition(LatLng(c.lat, c.lng), zoom, TILT, c.bearing)
 
     /** 移动光点：白色描边 + 绿色圆心 */
     private fun makeDotBitmap(): Bitmap {
@@ -353,6 +425,9 @@ class TrackVideoExporter(private val mapView: TextureMapView, private val track:
     companion object {
         /** 高德 CameraPosition.tilt 有效范围 0~45°，超限整组相机参数会被原生层丢弃（画面无倾角） */
         private const val TILT = 45f
+
+        /** 镜头朝向前瞻帧数：朝向看向平滑路径上该帧位置，镜头越快前瞻米数越长 */
+        private const val LOOKAHEAD_FRAMES = 12
     }
 }
 

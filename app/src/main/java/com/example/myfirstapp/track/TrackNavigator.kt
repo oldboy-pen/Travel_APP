@@ -13,6 +13,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.sqrt
@@ -55,6 +58,9 @@ data class NavigationState(
     val nextWaypointDistance: Double = 0.0, // 沿轨迹到下一个途经点的距离
     val passedWaypointCount: Int = 0,
     val totalWaypointCount: Int = 0,
+    // ---- 实际行走轨迹（导航过程同步记录，结束时保存为新轨迹）----
+    val actualPoints: List<TrackPoint> = emptyList(),
+    val actualDistanceMeters: Double = 0.0,
     // ---- 其它 ----
     val elapsedMillis: Long = 0L,
     val error: String? = null
@@ -160,6 +166,11 @@ object TrackNavigator {
     private var nearEndAnnounced = false
     private var startedAt = 0L
 
+    // ---- 实际行走轨迹：导航过程同步记录（过滤入轨），结束时可保存为新轨迹 ----
+    private val actualPoints = mutableListOf<TrackPoint>()
+    private var actualDistance = 0.0
+    private var actualClimb = 0.0
+
     val isNavigating: Boolean get() = _state.value.status == NavigationStatus.NAVIGATING
 
     // ==================== 生命周期 ====================
@@ -178,6 +189,9 @@ object TrackNavigator {
 
         VoiceAnnouncer.ensureInit(ctx)
         startedAt = android.os.SystemClock.elapsedRealtime()
+        actualPoints.clear()
+        actualDistance = 0.0
+        actualClimb = 0.0
         _state.value = NavigationState(
             status = NavigationStatus.NAVIGATING,
             trackId = target.id,
@@ -263,7 +277,12 @@ object TrackNavigator {
                     return@setLocationListener
                 }
                 if (_state.value.status != NavigationStatus.NAVIGATING) return@setLocationListener
-                onNewFix(loc.latitude, loc.longitude, loc.bearing, loc.accuracy, loc.speed)
+                onNewFix(
+                    loc.latitude, loc.longitude, loc.bearing, loc.accuracy, loc.speed,
+                    loc.altitude,
+                    if (loc.time > 0) loc.time else System.currentTimeMillis(),
+                    loc.locationType
+                )
             }
         }
         locationClient?.startLocation()
@@ -284,7 +303,8 @@ object TrackNavigator {
     // ==================== 每次定位的核心计算 ====================
 
     private fun onNewFix(
-        lat: Double, lng: Double, bearing: Float, accuracy: Float, speed: Float
+        lat: Double, lng: Double, bearing: Float, accuracy: Float, speed: Float,
+        altitude: Double, fixTime: Long, locationType: Int
     ) {
         val t = track ?: return
         val ctx = appContext ?: return
@@ -386,6 +406,9 @@ object TrackNavigator {
         val arrived = along > minCovered &&
                 (distToEnd <= ARRIVE_RADIUS_METERS || remaining <= 20.0)
 
+        // ---- 实际行走轨迹：与 TrackRecorder 同一套过滤思想（来源+精度门槛+降噪）----
+        recordActualPoint(t, lat, lng, altitude, speed, fixTime, accuracy, locationType)
+
         _state.value = _state.value.copy(
             status = if (arrived) NavigationStatus.ARRIVED else NavigationStatus.NAVIGATING,
             located = true,
@@ -410,6 +433,8 @@ object TrackNavigator {
             nextWaypointName = nextName,
             nextWaypointDistance = nextDist,
             passedWaypointCount = passed,
+            actualPoints = actualPoints.toList(),
+            actualDistanceMeters = actualDistance,
             error = null
         )
 
@@ -420,6 +445,66 @@ object TrackNavigator {
             tickerJob = null
             runCatching { locationClient?.stopLocation() }
         }
+    }
+
+    // ==================== 实际行走轨迹 ====================
+
+    /**
+     * 实际轨迹入轨：过滤规则与 TrackRecorder 同源但更精简（导航无计步器）——
+     * - GPS 点精度 ≤30 米、网络点(WiFi/基站) ≤15 米（网络点本就偏 20~50 米，从严）；
+     * - GeoUtils.isNoise 按原轨迹运动方式的灵敏度参数降噪（徒步/登山高灵敏）。
+     */
+    private fun recordActualPoint(
+        t: Track, lat: Double, lng: Double, altitude: Double,
+        speed: Float, time: Long, accuracy: Float, locationType: Int
+    ) {
+        val isGps = locationType == 1
+        val maxAccuracy = if (isGps) 30f else 15f
+        if (accuracy > 0f && accuracy > maxAccuracy) return
+        val last = actualPoints.lastOrNull()
+        val elapsedMs = if (last != null) (time - last.time).coerceIn(0L, 10 * 60_000L) else 1_000L
+        if (GeoUtils.isNoise(
+                last, lat, lng, speed, accuracy,
+                t.activityType.profile, elapsedMs, motionConfirmed = false
+            )
+        ) return
+        val point = TrackPoint(lat, lng, time, altitude, speed)
+        if (last != null) {
+            actualDistance += GeoUtils.distance(last.latitude, last.longitude, lat, lng)
+            if (altitude - last.altitude > 1.0) actualClimb += altitude - last.altitude
+        }
+        actualPoints += point
+    }
+
+    /**
+     * 取出本次导航实际行走的轨迹（生成后清空内部缓存，二次调用返回 null）。
+     * 点数 < 2 视为没走，返回 null。保存由调用方用 TrackRepository.save 完成。
+     */
+    fun takeActualTrack(): Track? {
+        val t = track
+        if (actualPoints.size < 2 || t == null) {
+            actualPoints.clear()
+            return null
+        }
+        val pts = actualPoints.toList()
+        val s = _state.value
+        val track = Track(
+            id = "track_" + pts.first().time,
+            name = "导航·${t.name} ${SimpleDateFormat("MM月dd日 HH:mm", Locale.CHINA)
+                .format(Date(pts.first().time))}",
+            startTime = pts.first().time,
+            endTime = pts.last().time,
+            points = pts,
+            waypoints = emptyList(),
+            distanceMeters = actualDistance,
+            durationMillis = s.elapsedMillis,
+            climbMeters = actualClimb,
+            activityType = t.activityType
+        )
+        actualPoints.clear()
+        actualDistance = 0.0
+        actualClimb = 0.0
+        return track
     }
 
     // ==================== 几何：把点投影到轨迹折线 ====================

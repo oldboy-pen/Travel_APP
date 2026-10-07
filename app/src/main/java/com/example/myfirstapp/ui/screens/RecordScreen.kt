@@ -58,6 +58,7 @@ import com.example.myfirstapp.map.rememberMapSurfaceState
 import com.example.myfirstapp.track.GeoUtils
 import com.example.myfirstapp.track.RecorderState
 import com.example.myfirstapp.track.StepSensorStatus
+import com.example.myfirstapp.track.TrackColorStore
 import com.example.myfirstapp.track.TrackRecorder
 import com.example.myfirstapp.track.TrackRecordingService
 import com.example.myfirstapp.track.TrackRepository
@@ -864,7 +865,7 @@ private fun TrackingMapView(
             engine.addPolyline(
                 data.points.map { GeoPoint(it.latitude, it.longitude) },
                 widthPx = 12f,
-                colorArgb = 0xFF2E7D32.toInt()
+                colorArgb = TrackColorStore.liveColor.value
             )
         }
         val lat = data.lastLatitude
@@ -1017,6 +1018,14 @@ private fun TrackingMapView(
     // ---- 轨迹点变化 → 只重画轨迹线（镜头不再自动移动）----
     LaunchedEffect(mapState.engine, data.points.size) {
         val engine = mapState.engine ?: return@LaunchedEffect
+        redraw(engine)
+    }
+
+    // ---- 轨迹颜色自定义变化 → 立即重画轨迹线 ----
+    val trackColor by TrackColorStore.liveColor.collectAsState()
+    LaunchedEffect(mapState.engine, trackColor) {
+        val engine = mapState.engine ?: return@LaunchedEffect
+        TrackColorStore.ensureLoaded(context)
         redraw(engine)
     }
 

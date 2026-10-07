@@ -67,6 +67,7 @@ import com.example.myfirstapp.track.Track
 import com.example.myfirstapp.track.TrackNavigationService
 import com.example.myfirstapp.track.TrackNavigator
 import com.example.myfirstapp.track.TrackRepository
+import com.example.myfirstapp.track.TrackColorStore
 import com.example.myfirstapp.track.VoiceAnnouncer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -105,10 +106,18 @@ fun TrackNavigationScreen(trackId: String, onExit: () -> Unit) {
         return
     }
 
-    /** 结束导航并退出页面：停定位 + 停前台服务 + 返回 */
+    /**
+     * 结束导航并退出页面：取出实际行走轨迹存档 + 停定位 + 停前台服务 + 返回。
+     * 实际轨迹点数足够（≥2 且通过降噪过滤）时保存为新轨迹并提示。
+     */
     fun stopAndExit() {
+        val actual = TrackNavigator.takeActualTrack()
         TrackNavigator.stop()
         TrackNavigationService.stop(context)
+        if (actual != null) {
+            repo.save(actual)
+            Toast.makeText(context, "已生成实际轨迹：${actual.name}", Toast.LENGTH_LONG).show()
+        }
         onExit()
     }
 
@@ -169,6 +178,7 @@ fun TrackNavigationScreen(trackId: String, onExit: () -> Unit) {
     // ---- 覆盖物：每 2 秒重绘一次（clearOverlays 会清掉全部，所以整幅重画）----
     LaunchedEffect(mapState.engine, track.id) {
         val engine = mapState.engine ?: return@LaunchedEffect
+        TrackColorStore.ensureLoaded(context)
         var firstDraw = true
         while (isActive) {
             val s = TrackNavigator.state.value
@@ -276,7 +286,8 @@ fun TrackNavigationScreen(trackId: String, onExit: () -> Unit) {
                         Spacer(Modifier.height(2.dp))
                         Text(
                             "已走 ${GeoUtils.formatDistance(navState.coveredMeters)} / " +
-                                    "全长 ${GeoUtils.formatDistance(navState.totalMeters)}",
+                                    "全长 ${GeoUtils.formatDistance(navState.totalMeters)} · " +
+                                    "实走 ${GeoUtils.formatDistance(navState.actualDistanceMeters)}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -406,7 +417,9 @@ fun TrackNavigationScreen(trackId: String, onExit: () -> Unit) {
                     "「${track.name}」导航完成：\n" +
                             "用时 ${GeoUtils.formatDuration(navState.elapsedMillis)}，" +
                             "沿轨迹 ${GeoUtils.formatDistance(navState.coveredMeters)}，" +
-                            "偏离预警 ${navState.alertCount} 次。"
+                            "偏离预警 ${navState.alertCount} 次。\n" +
+                            "实际行走轨迹（${GeoUtils.formatDistance(navState.actualDistanceMeters)}）" +
+                            "点「完成」后保存到轨迹历史。"
                 )
             },
             confirmButton = {
@@ -487,9 +500,9 @@ private fun DeviationBanner(state: NavigationState, modifier: Modifier = Modifie
 private const val MAX_POLYLINE_POINTS = 1200
 
 /**
- * 画导航图层：
- * - 灰色：整条轨迹（未走过部分）
- * - 绿色：已走过部分（到当前匹配点）
+ * 画导航图层（颜色可自定义，见 TrackColorStore / 图层面板「轨迹颜色」）：
+ * - 导航参考轨迹（navColor）：未走过=半透明、已走过=不透明，同色系区分
+ * - 实际行走轨迹（liveColor）：导航中同步记录的线，结束时保存为新轨迹
  * - 蓝色箭头：当前位置（按航向角旋转）
  * - 红色连线：偏离时从当前位置指向轨迹上的回归点
  */
@@ -501,20 +514,33 @@ private fun drawNavigation(
 ) {
     runCatching {
         engine.clearOverlays()
+        val navColor = TrackColorStore.navColor.value
+        val liveColor = TrackColorStore.liveColor.value
         val all = t.points.map { GeoPoint(it.latitude, it.longitude) }
         if (all.size < 2) return@runCatching
         val step = if (all.size > MAX_POLYLINE_POINTS) all.size / MAX_POLYLINE_POINTS + 1 else 1
         val full = if (step == 1) all
         else all.filterIndexed { i, _ -> i % step == 0 || i == all.lastIndex }
 
-        // 未走过的：灰
-        engine.addPolyline(full, widthPx = 12f, colorArgb = 0x889E9E9E.toInt())
-        // 已走过的：绿
+        // 参考轨迹——未走过的：同色半透明
+        engine.addPolyline(
+            full, widthPx = 12f,
+            colorArgb = TrackColorStore.withAlpha(navColor, 0x66)
+        )
+        // 参考轨迹——已走过的：不透明加粗
         val doneEnd = s.matchedIndex.coerceIn(0, all.lastIndex)
         if (doneEnd > 0) {
             val done = if (step == 1) all.subList(0, doneEnd + 1)
             else (0..doneEnd).filter { it % step == 0 || it == doneEnd }.map { all[it] }
-            engine.addPolyline(done, widthPx = 14f, colorArgb = 0xFF2E7D32.toInt())
+            engine.addPolyline(done, widthPx = 14f, colorArgb = navColor)
+        }
+
+        // 实际行走轨迹（本页生成的轨迹线，与参考轨迹颜色区分）
+        if (s.actualPoints.size >= 2) {
+            engine.addPolyline(
+                s.actualPoints.map { GeoPoint(it.latitude, it.longitude) },
+                widthPx = 12f, colorArgb = liveColor
+            )
         }
 
         engine.addMarker(all.first(), title = "起点")

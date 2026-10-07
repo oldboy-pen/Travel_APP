@@ -8,6 +8,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -35,6 +36,7 @@ import com.example.myfirstapp.R
 import com.example.myfirstapp.map.MapEngineKeys
 import com.example.myfirstapp.mapsources.MapSource
 import com.example.myfirstapp.mapsources.MapSourceStore
+import com.example.myfirstapp.track.TrackColorStore
 
 /** 内置图源 → 预览缩略图（真实瓦片，成都/四姑娘山一带 z12） */
 @DrawableRes
@@ -79,6 +81,13 @@ fun MapLayerSwitcher(
     val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
     var showManager by remember { mutableStateOf(false) }
+
+    // 首次进入也确保 store 已加载（页面未调用 ensureLoaded 时兜底）
+    LaunchedEffect(Unit) {
+        MapSourceStore.ensureLoaded(context)
+        MapEngineKeys.init(context)
+        TrackColorStore.ensureLoaded(context)
+    }
 
     Column(
         modifier = modifier,
@@ -129,12 +138,6 @@ fun MapLayerSwitcher(
 
     if (showManager) {
         MapSourceManagerSheet(onDismiss = { showManager = false })
-    }
-
-    // 首次进入也确保 store 已加载（页面未调用 ensureLoaded 时兜底）
-    LaunchedEffect(Unit) {
-        MapSourceStore.ensureLoaded(context)
-        MapEngineKeys.init(context)
     }
 }
 
@@ -215,6 +218,10 @@ fun LayerPanelContent(
                 sources = listOf<MapSource?>(null) + MapSourceStore.allOverlays(),
                 selectedId = MapSourceStore.activeOverlayId
             ) { MapSourceStore.selectOverlay(it) }
+
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            SectionLabel("轨迹颜色")
+            TrackColorSection()
         }
 
         // ---- 底部操作栏 ----
@@ -242,6 +249,87 @@ private fun SectionLabel(text: String) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 6.dp)
     )
+}
+
+/**
+ * 「轨迹颜色」区块：两行色块入口，点击弹出完整取色器。
+ * - 导航参考轨迹：轨迹导航页要走的路线（已走/未走用透明度区分）
+ * - 记录/生成轨迹：记录页实时轨迹、详情页历史轨迹、导航中实际走过的轨迹
+ * 颜色存 TrackColorStore，各地图页订阅其 StateFlow，改完即时重绘。
+ */
+@Composable
+private fun TrackColorSection() {
+    val context = LocalContext.current
+    val navColor by TrackColorStore.navColor.collectAsState()
+    val liveColor by TrackColorStore.liveColor.collectAsState()
+    var pickNav by remember { mutableStateOf(false) }
+    var pickLive by remember { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        ColorRow(
+            label = "导航参考轨迹",
+            color = navColor,
+            onClick = { pickNav = true }
+        )
+        ColorRow(
+            label = "记录 / 生成轨迹",
+            color = liveColor,
+            onClick = { pickLive = true }
+        )
+    }
+
+    if (pickNav) {
+        ColorPickerDialog(
+            title = "导航参考轨迹颜色",
+            initialColor = navColor,
+            defaultColor = TrackColorStore.DEFAULT_NAV,
+            onConfirm = {
+                TrackColorStore.setNavColor(context, it)
+                pickNav = false
+            },
+            onDismiss = { pickNav = false }
+        )
+    }
+    if (pickLive) {
+        ColorPickerDialog(
+            title = "记录 / 生成轨迹颜色",
+            initialColor = liveColor,
+            defaultColor = TrackColorStore.DEFAULT_LIVE,
+            onConfirm = {
+                TrackColorStore.setLiveColor(context, it)
+                pickLive = false
+            },
+            onDismiss = { pickLive = false }
+        )
+    }
+}
+
+/** 颜色行：色块 + 名称 + 当前色值，整行可点 */
+@Composable
+private fun ColorRow(label: String, color: Int, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 6.dp, vertical = 4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(26.dp)
+                .clip(CircleShape)
+                .background(Color(color))
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(label, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        Text(
+            "#%06X".format(color and 0x00FFFFFF),
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
 }
 
 /** 图源卡片网格：3 列，图上文下。null 元素表示叠加层"无"。 */

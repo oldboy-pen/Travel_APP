@@ -51,6 +51,7 @@ import com.example.myfirstapp.map.rememberMapSurfaceState
 import com.example.myfirstapp.mapsources.MapSourceStore
 import com.example.myfirstapp.track.GeoUtils
 import com.example.myfirstapp.track.Track
+import com.example.myfirstapp.track.TrackColorStore
 import com.example.myfirstapp.track.TrackFileFormat
 import com.example.myfirstapp.track.TrackRepository
 import com.example.myfirstapp.track.TrackVideoExporter
@@ -418,7 +419,10 @@ private fun drawTrackOnMap(engine: MapEngine, t: Track, fitBounds: Boolean) {
         engine.clearOverlays()   // 只清抽象层画过的东西，底图瓦片层不动
         val points = t.points.map { GeoPoint(it.latitude, it.longitude) }
         if (points.size >= 2) {
-            engine.addPolyline(points, widthPx = 12f, colorArgb = 0xFF2E7D32.toInt())
+            engine.addPolyline(
+                points, widthPx = 12f,
+                colorArgb = TrackColorStore.liveColor.value
+            )
             engine.addMarker(points.first(), title = "起点")
             engine.addMarker(points.last(), title = "终点")
         }
@@ -469,9 +473,11 @@ private fun TrackPlaybackMapView(
         }
     )
 
-    // ---- 轨迹 / 图源变化 → 重绘 ----
-    LaunchedEffect(mapState.engine, t.id) {
+    // ---- 轨迹 / 图源 / 轨迹颜色变化 → 重绘 ----
+    val trackColor by TrackColorStore.liveColor.collectAsState()
+    LaunchedEffect(mapState.engine, t.id, trackColor) {
         val engine = mapState.engine ?: return@LaunchedEffect
+        TrackColorStore.ensureLoaded(context)
         MapSourceStore.ensureLoaded(context)
         drawTrackOnMap(engine, t, fitBounds = true)
     }
