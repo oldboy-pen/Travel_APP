@@ -11,17 +11,23 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PhotoLibrary
@@ -31,6 +37,8 @@ import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -58,7 +66,9 @@ import com.example.myfirstapp.map.rememberMapSurfaceState
 import com.example.myfirstapp.track.GeoUtils
 import com.example.myfirstapp.track.RecorderState
 import com.example.myfirstapp.track.StepSensorStatus
+import com.example.myfirstapp.track.Track
 import com.example.myfirstapp.track.TrackColorStore
+import com.example.myfirstapp.track.TrackDownloadStore
 import com.example.myfirstapp.track.TrackRecorder
 import com.example.myfirstapp.track.TrackRecordingService
 import com.example.myfirstapp.track.TrackRepository
@@ -92,6 +102,57 @@ fun RecordScreen(
     // ---- 轨迹导航：弹窗列出已保存轨迹，选一条开始导航（记录中需先结束）----
     var showNavTrackPicker by remember { mutableStateOf(false) }
     var navTracks by remember { mutableStateOf<List<com.example.myfirstapp.track.Track>>(emptyList()) }
+
+    // ---- 加载轨迹：本地 / 网络 / 已下载 三栏，勾选即叠加到地图作参考 ----
+    var showTrackLoadSheet by remember { mutableStateOf(false) }
+    var loadedTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
+    // 单独查看：非空时地图上只显示这一条叠加轨迹（其余临时隐藏），镜头框到它
+    var focusTrackId by remember { mutableStateOf<String?>(null) }
+    // 本地列表版本号：导入/删除后 +1，让加载面板重新读一次轨迹库
+    var localVersion by remember { mutableStateOf(0) }
+
+    /** 单独查看某条：未叠加的先自动叠上，再切到只看它 */
+    fun focusTrack(track: Track) {
+        if (loadedTracks.none { it.id == track.id }) {
+            loadedTracks = loadedTracks + track
+        }
+        focusTrackId = if (focusTrackId == track.id) null else track.id
+        showTrackLoadSheet = false
+    }
+
+    /** 勾选/取消勾选：叠加到地图或从地图上撤掉（不动本地文件） */
+    fun toggleLoaded(track: Track) {
+        loadedTracks = if (loadedTracks.any { it.id == track.id }) {
+            loadedTracks.filterNot { it.id == track.id }
+                .also { if (focusTrackId == track.id) focusTrackId = null }
+        } else loadedTracks + track
+    }
+
+    /** 删除本地轨迹：连带从地图撤掉，并取消「已下载」标记与自定义线色 */
+    fun deleteTrack(track: Track) {
+        TrackRepository.get(context).delete(track.id)
+        TrackDownloadStore.get(context).unmark(track.id)
+        TrackColorStore.clearOverlayColor(context, track.id)
+        loadedTracks = loadedTracks.filterNot { it.id == track.id }
+        if (focusTrackId == track.id) focusTrackId = null
+        localVersion++
+        Toast.makeText(context, "已删除：${track.name}", Toast.LENGTH_SHORT).show()
+    }
+
+    // 从文件导入轨迹（GPX / KML / KMZ 自动识别）→ 直接入库
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val track = TrackRepository.get(context).importTrack(context, uri)
+            if (track != null) {
+                localVersion++
+                Toast.makeText(context, "导入成功：${track.name}", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "导入失败：不是有效的轨迹文件（支持 GPX / KML / KMZ）", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     // 每次打开选择器重新读一次轨迹库（可能刚记录完新轨迹）
     LaunchedEffect(showNavTrackPicker) {
@@ -302,7 +363,14 @@ fun RecordScreen(
         TrackingMapView(
             data = data,
             bottomPanelCollapsed = bottomPanelCollapsed,
-            onOpenNavigation = { openNavigationPicker() }
+            overlayTracks = loadedTracks,
+            focusTrackId = focusTrackId,
+            onOpenNavigation = { openNavigationPicker() },
+            onOpenTrackLoad = { showTrackLoadSheet = true },
+            onFocus = { track -> focusTrack(track) },
+            onRemove = { track -> toggleLoaded(track) },
+            onClearOverlay = { loadedTracks = emptyList(); focusTrackId = null },
+            onExitFocus = { focusTrackId = null }
         )
 
         // ---- 数据条：记录中/暂停时显示在屏幕最底部（空闲态隐藏）----
@@ -456,30 +524,50 @@ fun RecordScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     when (data.state) {
-                        RecorderState.IDLE -> Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Button(
-                                onClick = { showActivitySelector = true },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                        RecorderState.IDLE -> Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Icon(Icons.Default.PlayArrow, null)
-                                Spacer(Modifier.width(6.dp))
-                                Text("开始记录", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Button(
+                                    onClick = { showActivitySelector = true },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                                ) {
+                                    Icon(Icons.Default.PlayArrow, null)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("开始记录", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                }
+                                // 沿已保存的轨迹行进（导航）
+                                OutlinedButton(
+                                    onClick = { openNavigationPicker() },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Navigation, null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("轨迹导航", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                                }
                             }
-                            // 沿已保存的轨迹行进（导航）
+                            // 加载参考轨迹：本地 / 网络 / 已下载 三栏勾选叠加到地图
+                            Spacer(Modifier.height(8.dp))
                             OutlinedButton(
-                                onClick = { openNavigationPicker() },
-                                modifier = Modifier.weight(1f)
+                                onClick = { showTrackLoadSheet = true },
+                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 Icon(
-                                    Icons.Default.Navigation, null,
+                                    Icons.Default.Route, null,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(Modifier.width(6.dp))
-                                Text("轨迹导航", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                                Text(
+                                    if (loadedTracks.isEmpty()) "加载轨迹（本地 / 网络 / 已下载）"
+                                    else "已加载 ${loadedTracks.size} 条轨迹 · 继续添加",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
                             }
                         }
 
@@ -650,6 +738,29 @@ fun RecordScreen(
             )
         }
 
+        // ---- 加载轨迹：本地 / 网络 / 已下载 ----
+        if (showTrackLoadSheet) {
+            com.example.myfirstapp.ui.components.TrackLoadSheet(
+                loadedIds = loadedTracks.map { it.id }.toSet(),
+                focusId = focusTrackId,
+                localVersion = localVersion,
+                onDismiss = { showTrackLoadSheet = false },
+                onToggle = { track ->
+                    toggleLoaded(track)
+                    // 记录中加载完自动收起面板，让出地图
+                    if (data.state != RecorderState.IDLE) showTrackLoadSheet = false
+                },
+                onFocus = { track -> focusTrack(track) },
+                onNavigate = { id ->
+                    showTrackLoadSheet = false
+                    if (data.state == RecorderState.IDLE) onNavigate(id)
+                    else Toast.makeText(context, "请先结束当前记录，再进行轨迹导航", Toast.LENGTH_SHORT).show()
+                },
+                onImportFile = { importLauncher.launch(arrayOf("*/*")) },
+                onDelete = { track -> deleteTrack(track) }
+            )
+        }
+
         if (showActivitySelector) {
             AlertDialog(
                 onDismissRequest = { showActivitySelector = false },
@@ -814,7 +925,14 @@ private fun finishRecording(context: Context, onTrackSaved: (String) -> Unit) {
 private fun TrackingMapView(
     data: com.example.myfirstapp.track.RecordingData,
     bottomPanelCollapsed: Boolean,
-    onOpenNavigation: () -> Unit
+    overlayTracks: List<Track>,
+    focusTrackId: String?,
+    onOpenNavigation: () -> Unit,
+    onOpenTrackLoad: () -> Unit,
+    onFocus: (Track) -> Unit,
+    onRemove: (Track) -> Unit,
+    onClearOverlay: () -> Unit,
+    onExitFocus: () -> Unit
 ) {
     val context = LocalContext.current
     val mapState = rememberMapSurfaceState("record")
@@ -858,9 +976,32 @@ private fun TrackingMapView(
         bmp
     }
 
+    // 单独查看时只画那一条，其余临时隐藏
+    val visibleOverlays =
+        focusTrackId?.let { id -> overlayTracks.filter { it.id == id } } ?: overlayTracks
+
+    // 右侧「已加载轨迹」侧栏展开状态 + 逐条改色的取色器
+    var sideTabExpanded by remember { mutableStateOf(false) }
+    var colorPicking by remember { mutableStateOf<Track?>(null) }
+
     /** 整体重画：先清掉本抽象层画过的东西（不含底图瓦片层），再按最新数据画一遍 */
     fun redraw(engine: MapEngine) {
         engine.clearOverlays()
+        // 先画叠加的参考轨迹（加载的本地/网络/下载轨迹），再画实时记录线，
+        // 保证当前正在走的这条压在最上面
+        visibleOverlays.forEach { t ->
+            if (t.points.size < 2) return@forEach
+            engine.addPolyline(
+                t.points.map { GeoPoint(it.latitude, it.longitude) },
+                widthPx = 10f,
+                // 每条叠加轨迹可单独改色（存在 TrackColorStore，按 id 查），
+                // 没改过的一律用默认橙红
+                colorArgb = TrackColorStore.overlayColorOf(t.id)
+            )
+            // 起点打一个默认图标，方便判断该从哪头上路
+            val first = t.points.first()
+            engine.addMarker(GeoPoint(first.latitude, first.longitude), title = "${t.name} · 起点")
+        }
         if (data.points.size >= 2) {
             engine.addPolyline(
                 data.points.map { GeoPoint(it.latitude, it.longitude) },
@@ -971,6 +1112,84 @@ private fun TrackingMapView(
                 )
             }
 
+            // ---- 加载轨迹入口：左侧一列第四个（本地 / 网络 / 已下载）----
+            SmallFloatingActionButton(
+                onClick = onOpenTrackLoad,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 12.dp, top = 184.dp), // 导航按钮（top136+40）下方留 8dp
+                containerColor = if (overlayTracks.isEmpty()) Color.White else Color(0xFFFF6D00)
+            ) {
+                Icon(
+                    Icons.Default.Route,
+                    contentDescription = "加载轨迹",
+                    tint = if (overlayTracks.isEmpty()) Color(0xFF2E7D32) else Color.White
+                )
+            }
+
+            // ---- 顶部状态条：单独查看中 → 显示该条 + 退出；否则显示已加载条数 + 清除 ----
+            val focusTrack = overlayTracks.firstOrNull { it.id == focusTrackId }
+            if (focusTrack != null) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 16.dp),
+                    shape = RoundedCornerShape(999.dp),
+                    color = Color(TrackColorStore.overlayColorOf(focusTrack.id)),
+                    shadowElevation = 4.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(start = 14.dp, end = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "只看：${focusTrack.name}",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelLarge,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 200.dp)
+                        )
+                        IconButton(onClick = onExitFocus, modifier = Modifier.size(32.dp)) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "退出单独查看",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            } else if (overlayTracks.isNotEmpty()) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 16.dp),
+                    shape = RoundedCornerShape(999.dp),
+                    color = Color(0xFFFF6D00),
+                    shadowElevation = 4.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(start = 14.dp, end = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "已加载 ${overlayTracks.size} 条参考轨迹",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                        IconButton(onClick = onClearOverlay, modifier = Modifier.size(32.dp)) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "清除叠加轨迹",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
             // ---- 当前图源署名：贴在 SDK 自带 logo 右侧 ----
             // 底部面板折叠时上移，避免被折叠抓手遮挡
             com.example.myfirstapp.ui.components.MapAttribution(
@@ -986,6 +1205,24 @@ private fun TrackingMapView(
                     .padding(top = 16.dp, end = 12.dp),
                 asSheet = true
             )
+
+            // ---- 已加载轨迹侧栏：贴右边，折叠时是一个竖标签，点开是列表 ----
+            if (overlayTracks.isNotEmpty()) {
+                LoadedTracksSideTab(
+                    tracks = overlayTracks,
+                    focusTrackId = focusTrackId,
+                    expanded = sideTabExpanded,
+                    onToggleExpand = { sideTabExpanded = !sideTabExpanded },
+                    onPickColor = { colorPicking = it },
+                    onFocus = onFocus,
+                    onRemove = onRemove,
+                    onAdd = onOpenTrackLoad,
+                    onClear = onClearOverlay,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(bottom = 48.dp)   // 上移一点，避开底部数据面板
+                )
+            }
         }
     )
 
@@ -1015,10 +1252,29 @@ private fun TrackingMapView(
         }
     }
 
-    // ---- 轨迹点变化 → 只重画轨迹线（镜头不再自动移动）----
-    LaunchedEffect(mapState.engine, data.points.size) {
+    // ---- 轨迹点变化 / 叠加轨迹变化 / 叠加线改色 → 重画（镜头只在「新增叠加轨迹」时调整）----
+    val overlayColors by TrackColorStore.overlayColors.collectAsState()
+    var lastOverlayCount by remember { mutableIntStateOf(0) }
+    LaunchedEffect(mapState.engine, data.points.size, visibleOverlays, overlayColors) {
         val engine = mapState.engine ?: return@LaunchedEffect
         redraw(engine)
+        // 新叠加一条 → 把镜头框到这条轨迹；撤掉时不动画镜头，避免视野乱跳。
+        // 判据用 overlayTracks.size（已加载总数），这样进出"单独查看"不会误触发镜头动画
+        if (overlayTracks.size > lastOverlayCount) {
+            visibleOverlays.lastOrNull()?.takeIf { it.points.size >= 2 }?.let { t ->
+                engine.fitBounds(t.points.map { GeoPoint(it.latitude, it.longitude) }, 64, animate = true)
+            }
+        }
+        lastOverlayCount = overlayTracks.size
+    }
+
+    // ---- 单独查看：镜头框到这一条（切换/退出时都会触发一次）----
+    LaunchedEffect(mapState.engine, focusTrackId) {
+        val engine = mapState.engine ?: return@LaunchedEffect
+        val t = visibleOverlays.firstOrNull { it.id == focusTrackId } ?: return@LaunchedEffect
+        if (t.points.size >= 2) {
+            engine.fitBounds(t.points.map { GeoPoint(it.latitude, it.longitude) }, 64, animate = true)
+        }
     }
 
     // ---- 轨迹颜色自定义变化 → 立即重画轨迹线 ----
@@ -1043,6 +1299,171 @@ private fun TrackingMapView(
                 if (target != null) {
                     followMode.value = true
                     engine.animateCamera(target)
+                }
+            }
+        }
+    }
+
+    // ---- 侧栏里点色点 → 改这条轨迹自己的线色 ----
+    colorPicking?.let { t ->
+        com.example.myfirstapp.ui.components.ColorPickerDialog(
+            title = "轨迹颜色：${t.name}",
+            initialColor = TrackColorStore.overlayColorOf(t.id),
+            defaultColor = TrackColorStore.DEFAULT_OVERLAY,
+            onConfirm = { argb ->
+                TrackColorStore.setOverlayColor(context, t.id, argb)
+                colorPicking = null
+            },
+            onDismiss = { colorPicking = null }
+        )
+    }
+}
+
+/**
+ * 已加载轨迹侧栏（贴在地图右边）：
+ * - 折叠态：一条竖排小标签，显示已加载条数，点一下展开；
+ * - 展开态：右侧卡片列出每条已加载轨迹，可单独查看 / 改线色 / 移除，
+ *   底部给「添加」和「清除全部」。
+ *
+ * 只在有叠加轨迹时出现，避免空标签占地方。
+ */
+@Composable
+private fun LoadedTracksSideTab(
+    tracks: List<Track>,
+    focusTrackId: String?,
+    expanded: Boolean,
+    onToggleExpand: () -> Unit,
+    onPickColor: (Track) -> Unit,
+    onFocus: (Track) -> Unit,
+    onRemove: (Track) -> Unit,
+    onAdd: () -> Unit,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (!expanded) {
+        // ---- 折叠：竖排标签（每字一行）----
+        Surface(
+            onClick = onToggleExpand,
+            modifier = modifier.width(30.dp),
+            shape = RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp),
+            color = MaterialTheme.colorScheme.primaryContainer,
+            shadowElevation = 4.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                ("已加载 ${tracks.size} 条").forEach { ch ->
+                    Text(
+                        ch.toString(),
+                        fontSize = 11.sp,
+                        lineHeight = 14.sp,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+        }
+        return
+    }
+
+    // ---- 展开：右侧列表卡片 ----
+    Surface(
+        modifier = modifier
+            .width(236.dp)
+            .heightIn(max = 360.dp),
+        shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 8.dp
+    ) {
+        Column(Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "已加载 ${tracks.size} 条",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = onToggleExpand, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "收起",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+
+            LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
+                items(tracks, key = { it.id }) { t ->
+                    val focused = focusTrackId == t.id
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 线色小圆点：点一下改这条的颜色
+                        Surface(
+                            onClick = { onPickColor(t) },
+                            shape = CircleShape,
+                            color = Color(TrackColorStore.overlayColorOf(t.id)),
+                            modifier = Modifier
+                                .size(22.dp)
+                                .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                        ) {}
+                        Spacer(Modifier.width(6.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                t.name,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = if (focused) FontWeight.Bold else FontWeight.Normal,
+                                color = if (focused) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                            Text(
+                                GeoUtils.formatDistance(t.distanceMeters),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        // 单独查看（再点一次取消）
+                        IconButton(onClick = { onFocus(t) }, modifier = Modifier.size(28.dp)) {
+                            Icon(
+                                if (focused) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = if (focused) "取消单独查看" else "单独查看",
+                                tint = if (focused) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        // 从地图上撤掉这一条（不删本地文件）
+                        IconButton(onClick = { onRemove(t) }, modifier = Modifier.size(28.dp)) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "移除这条",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(6.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                TextButton(onClick = onAdd, modifier = Modifier.weight(1f)) {
+                    Text("添加", style = MaterialTheme.typography.labelLarge)
+                }
+                TextButton(onClick = onClear, modifier = Modifier.weight(1f)) {
+                    Text("清除全部", style = MaterialTheme.typography.labelLarge)
                 }
             }
         }

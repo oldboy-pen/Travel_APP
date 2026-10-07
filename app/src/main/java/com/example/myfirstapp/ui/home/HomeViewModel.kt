@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.myfirstapp.data.user.CloudTrackApi
 import com.example.myfirstapp.data.user.CloudTrackApi.ServerTrack
 import com.example.myfirstapp.data.user.CloudTrackViewModel
+import com.example.myfirstapp.track.TrackDownloadStore
 import com.example.myfirstapp.track.TrackRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -92,15 +93,20 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             val (id, err) = withContext(Dispatchers.IO) {
                 runCatching {
                     val repo = TrackRepository.get(getApplication())
+                    // 记账：任何"从服务器拉下来的轨迹"都打上已下载标记，
+                    // 运动页「加载轨迹 → 已下载」栏靠它过滤
+                    val store = TrackDownloadStore.get(getApplication())
                     // 本地已有（比如自己同步过的那条）就直接打开，省一次网络请求
                     val local = repo.load(route.id)
                     if (local != null) {
+                        store.mark(local.id)
                         local.id
                     } else {
                         val json = CloudTrackApi(serverUrl).downloadTrack(route.userId, route.id)
                             ?: error("服务器上没有这条线路的轨迹数据")
                         val track = repo.parseTrack(json)
                         repo.save(track)
+                        store.mark(track.id)
                         track.id
                     }
                 }.fold(
