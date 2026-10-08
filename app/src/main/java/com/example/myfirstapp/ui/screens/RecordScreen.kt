@@ -63,6 +63,7 @@ import com.example.myfirstapp.map.MapSurface
 import com.example.myfirstapp.map.MapSurfaceState
 import com.example.myfirstapp.map.MapUiSettings
 import com.example.myfirstapp.map.rememberMapSurfaceState
+import com.example.myfirstapp.mapsources.MapSourceStore
 import com.example.myfirstapp.track.GeoUtils
 import com.example.myfirstapp.track.RecorderState
 import com.example.myfirstapp.track.StepSensorStatus
@@ -978,6 +979,33 @@ private fun TrackingMapView(
     // 单独查看时只画那一条，其余临时隐藏
     val visibleOverlays =
         focusTrackId?.let { id -> overlayTracks.filter { it.id == id } } ?: overlayTracks
+
+    // ---- 运动页：进入自动叠加等高线图层（仅本页；退出还原全局叠加层）----
+    val contourApplied = remember { mutableStateOf(false) }
+    val prevOverlayId = remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(mapState.engine) {
+        val engine = mapState.engine ?: return@LaunchedEffect
+        if (contourApplied.value) return@LaunchedEffect
+        MapSourceStore.ensureLoaded(context)
+        prevOverlayId.value = MapSourceStore.activeOverlayId
+        if (MapSourceStore.autoContourEnabled) {
+            val cs = MapSourceStore.contourSource()
+            // 仅在本页尚未是等高线时切换，避免无意义刷新；退还会还原到进入前的叠加层
+            if (prevOverlayId.value != cs.id) {
+                MapSourceStore.selectOverlay(cs.id)
+                Toast.makeText(context, "已自动叠加等高线：${cs.name}", Toast.LENGTH_SHORT).show()
+            }
+        }
+        contourApplied.value = true
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            if (contourApplied.value) {
+                MapSourceStore.selectOverlay(prevOverlayId.value)
+                contourApplied.value = false
+            }
+        }
+    }
 
     // 右侧「已加载轨迹」侧栏展开状态 + 逐条改色的取色器
     var sideTabExpanded by remember { mutableStateOf(false) }

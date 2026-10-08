@@ -14,18 +14,24 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.widget.Toast
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.myfirstapp.track.RecorderState
 import com.example.myfirstapp.track.TrackRecorder
+import com.example.myfirstapp.track.PendingNavTrack
+import com.example.myfirstapp.track.TrackRepository
 import com.example.myfirstapp.ui.screens.CloudAuthScreen
 import com.example.myfirstapp.ui.screens.HomeScreen
 import com.example.myfirstapp.ui.screens.LoginScreen
@@ -96,7 +102,7 @@ fun AppRoot() {
             modifier = Modifier.padding(padding)
         ) {
             composable("home") { HomeScreen(onOpenTrack = { id -> navController.navigateToTrackDetail(id) }) }
-            composable("map") { MapScreen() }
+            composable("map") { MapScreen(onNavigate = { navController.navigate(it) }) }
             composable("record") {
                 RecordScreen(
                     onTrackSaved = { id -> navController.navigateToTrackDetail(id) },
@@ -185,10 +191,30 @@ fun AppRoot() {
             }
             // 轨迹导航：沿已保存的轨迹行进，偏离超阈值语音预警（全屏页）
             composable("nav/{id}") { entry ->
-                TrackNavigationScreen(
-                    trackId = entry.arguments?.getString("id").orEmpty(),
-                    onExit = { navController.popBackStack() }
-                )
+                val ctx = LocalContext.current
+                val id = entry.arguments?.getString("id").orEmpty()
+                val track = remember(id) { TrackRepository.get(ctx).load(id) }
+                if (track == null) {
+                    LaunchedEffect(Unit) {
+                        Toast.makeText(ctx, "轨迹不存在", Toast.LENGTH_SHORT).show()
+                        navController.popBackStack()
+                    }
+                } else {
+                    TrackNavigationScreen(track = track, onExit = { navController.popBackStack() })
+                }
+            }
+            // 地图页目的地导航：复用 App 内导航，路线由地图页内存传入（不落库）
+            composable("navDest") {
+                val ctx = LocalContext.current
+                val track = remember { PendingNavTrack.get() }
+                if (track == null) {
+                    LaunchedEffect(Unit) { navController.popBackStack() }
+                } else {
+                    TrackNavigationScreen(
+                        track = track,
+                        onExit = { PendingNavTrack.clear(); navController.popBackStack() }
+                    )
+                }
             }
         }
     }

@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Route
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -39,6 +41,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -114,6 +117,7 @@ fun TrackLoadSheet(
     TrackColorStore.overlayColors.collectAsState().value
 
     var tab by remember { mutableIntStateOf(0) }
+    var query by remember { mutableStateOf("") }
     var localTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
     var downloadedIds by remember { mutableStateOf(store.ids()) }
 
@@ -241,6 +245,13 @@ fun TrackLoadSheet(
             }
             Spacer(Modifier.height(8.dp))
 
+            SearchBar(
+                query = query,
+                onQueryChange = { query = it },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+
             val bodyHeight = (LocalConfiguration.current.screenHeightDp * 0.55f).dp
             Box(
                 Modifier
@@ -253,6 +264,7 @@ fun TrackLoadSheet(
                         downloadedIds = downloadedIds,
                         loadedIds = loadedIds,
                         focusId = focusId,
+                        query = query,
                         onImport = onImportFile,
                         onToggle = onToggle,
                         onFocus = onFocus,
@@ -268,6 +280,7 @@ fun TrackLoadSheet(
                         serverUrl = serverUrl,
                         downloadedIds = downloadedIds,
                         downloadingId = downloadingId,
+                        query = query,
                         onRetry = ::loadNet,
                         onDownload = ::download
                     )
@@ -276,6 +289,7 @@ fun TrackLoadSheet(
                         tracks = localTracks.filter { downloadedIds.contains(it.id) },
                         loadedIds = loadedIds,
                         focusId = focusId,
+                        query = query,
                         onToggle = onToggle,
                         onFocus = onFocus,
                         onPickColor = { colorPicking = it },
@@ -296,6 +310,7 @@ private fun LocalPane(
     downloadedIds: Set<String>,
     loadedIds: Set<String>,
     focusId: String?,
+    query: String,
     onImport: () -> Unit,
     onToggle: (Track) -> Unit,
     onFocus: (Track) -> Unit,
@@ -303,6 +318,8 @@ private fun LocalPane(
     onNavigate: (String) -> Unit,
     onDelete: (Track) -> Unit
 ) {
+    val shown = if (query.isBlank()) tracks
+    else tracks.filter { it.name.contains(query, ignoreCase = true) }
     Column(Modifier.fillMaxSize()) {
         OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.IosShare, null, Modifier.size(18.dp))
@@ -310,15 +327,15 @@ private fun LocalPane(
             Text("从文件导入（GPX / KML / KMZ）")
         }
         Spacer(Modifier.height(8.dp))
-        if (tracks.isEmpty()) {
-            EmptyHint("本地还没有轨迹\n去记录一条，或从文件导入")
-        } else {
-            LazyColumn(
+        when {
+            tracks.isEmpty() -> EmptyHint("本地还没有轨迹\n去记录一条，或从文件导入")
+            shown.isEmpty() -> EmptyHint("没有匹配「$query」的轨迹")
+            else -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 contentPadding = PaddingValues(bottom = 8.dp)
             ) {
-                items(tracks, key = { it.id }) { t ->
+                items(shown, key = { it.id }) { t ->
                     TrackRow(
                         track = t,
                         loaded = loadedIds.contains(t.id),
@@ -347,9 +364,15 @@ private fun NetworkPane(
     serverUrl: String,
     downloadedIds: Set<String>,
     downloadingId: String?,
+    query: String,
     onRetry: () -> Unit,
     onDownload: (ServerTrack) -> Unit
 ) {
+    val shown = if (query.isBlank()) routes
+    else routes.filter {
+        it.name.contains(query, ignoreCase = true) ||
+                it.ownerNickname.contains(query, ignoreCase = true)
+    }
     Column(Modifier.fillMaxSize()) {
         Row(
             Modifier.fillMaxWidth(),
@@ -392,12 +415,13 @@ private fun NetworkPane(
                 OutlinedButton(onClick = onRetry) { Text("重试") }
             }
             routes.isEmpty() -> EmptyHint("服务器上还没有共享线路\n先在「我的」页把轨迹同步到云端")
+            shown.isEmpty() -> EmptyHint("没有匹配「$query」的线路")
             else -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 contentPadding = PaddingValues(bottom = 8.dp)
             ) {
-                items(routes, key = { it.id + it.userId }) { st ->
+                items(shown, key = { it.id + it.userId }) { st ->
                     ServerRouteRow(
                         route = st,
                         downloaded = downloadedIds.contains(st.id),
@@ -474,21 +498,24 @@ private fun DownloadedPane(
     tracks: List<Track>,
     loadedIds: Set<String>,
     focusId: String?,
+    query: String,
     onToggle: (Track) -> Unit,
     onFocus: (Track) -> Unit,
     onPickColor: (Track) -> Unit,
     onNavigate: (String) -> Unit,
     onDelete: (Track) -> Unit
 ) {
-    if (tracks.isEmpty()) {
-        EmptyHint("还没有从云端下载过轨迹\n去「网络」栏挑一条线路下载")
-    } else {
-        LazyColumn(
+    val shown = if (query.isBlank()) tracks
+    else tracks.filter { it.name.contains(query, ignoreCase = true) }
+    when {
+        tracks.isEmpty() -> EmptyHint("还没有从云端下载过轨迹\n去「网络」栏挑一条线路下载")
+        shown.isEmpty() -> EmptyHint("没有匹配「$query」的轨迹")
+        else -> LazyColumn(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(6.dp),
             contentPadding = PaddingValues(bottom = 8.dp)
         ) {
-            items(tracks, key = { it.id }) { t ->
+            items(shown, key = { it.id }) { t ->
                 TrackRow(
                     track = t,
                     loaded = loadedIds.contains(t.id),
@@ -610,6 +637,41 @@ private fun TrackRow(
             }
         }
     }
+}
+
+@Composable
+private fun SearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = modifier.fillMaxWidth(),
+        placeholder = { Text("搜索轨迹名称…") },
+        leadingIcon = {
+            Icon(
+                Icons.Default.Search,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        trailingIcon = if (query.isNotEmpty()) {
+            {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(
+                        Icons.Default.Clear,
+                        contentDescription = "清除",
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        } else null,
+        singleLine = true,
+        shape = RoundedCornerShape(12.dp)
+    )
 }
 
 @Composable

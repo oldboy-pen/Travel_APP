@@ -6,6 +6,10 @@ import com.amap.api.location.AMapLocationClient
 import com.amap.api.location.AMapLocationClientOption
 import com.amap.api.maps.model.LatLng
 import com.amap.api.services.core.LatLonPoint
+import com.amap.api.services.geocoder.GeocodeQuery
+import com.amap.api.services.geocoder.GeocodeResult
+import com.amap.api.services.geocoder.GeocodeSearch
+import com.amap.api.services.geocoder.RegeocodeResult
 import com.amap.api.services.route.BusRouteResult
 import com.amap.api.services.route.DriveRouteResult
 import com.amap.api.services.route.RideRouteResult
@@ -21,8 +25,10 @@ data class MapUiState(
     val myLocation: LatLng? = null,      // 我的实时位置
     val locationText: String? = null,    // 位置文字描述
     val destination: LatLng? = null,     // 目的地（长按地图设置）
+    val destinationName: String? = null, // 目的地名称（手动输入/搜索得到，长按则为 null）
     val routePoints: List<LatLng> = emptyList(), // 规划出的驾车路线
     val routeInfo: String? = null,       // "x.x 公里 · 约 x 分钟"
+    val planFailed: Boolean = false,     // 最近一次路线规划是否失败（App内导航据此提示）
     val message: String? = null          // Toast 消息
 )
 
@@ -39,6 +45,8 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
     private var locationClient: AMapLocationClient? = null
     private val routeSearch = RouteSearch(application)
+    private val geocodeSearch = GeocodeSearch(application)
+    private var lastGeocodeQuery = ""
 
     init {
         routeSearch.setRouteSearchListener(object : RouteSearch.OnRouteSearchListener {
@@ -50,6 +58,15 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             override fun onBusRouteSearched(result: BusRouteResult?, errorCode: Int) = Unit
             override fun onWalkRouteSearched(result: WalkRouteResult?, errorCode: Int) = Unit
             override fun onRideRouteSearched(result: RideRouteResult?, errorCode: Int) = Unit
+        })
+
+        // 地理编码：把"地点名"转成坐标（手动输入目的地用）
+        geocodeSearch.setOnGeocodeSearchListener(object :
+            com.amap.api.services.geocoder.GeocodeSearch.OnGeocodeSearchListener {
+            override fun onGeocodeSearched(result: GeocodeResult?, code: Int) {
+                handleGeocode(result, code)
+            }
+            override fun onRegeocodeSearched(result: RegeocodeResult?, code: Int) = Unit
         })
     }
 
@@ -82,15 +99,72 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** 长按地图设置目的地 */
-    fun setDestination(latLng: LatLng) {
+    /** 设置目的地（长按地图 / 手动输入都走这里）。改目的地会清掉旧路线 */
+    fun setDestination(latLng: LatLng, name: String? = null) {
         _uiState.update {
             it.copy(
                 destination = latLng,
+                destinationName = name,
                 routePoints = emptyList(),   // 清除旧路线
-                routeInfo = null
+                routeInfo = null,
+                planFailed = false
             )
         }
+    }
+
+    /**
+     * 手动输入目的地：支持两种写法
+     * 1. 地点名（如"北京南站"）→ 高德地理编码转坐标；
+     * 2. 经纬度（"纬度,经度" 或 "纬度 经度"，中英文逗号/空格均可）→ 直接解析。
+     * 解析失败（非坐标且地理编码无结果）给出 Toast 提示。
+     */
+    fun searchDestination(query: String) {
+        val q = query.trim()
+        if (q.isEmpty()) {
+            _uiState.update { it.copy(message = "请输入目的地或坐标") }
+            return
+        }
+        // 先尝试按"纬度,经度"解析，命中则无需联网
+        parseCoord(q)?.let {
+            setDestination(it, "手动坐标")
+            return
+        }
+        lastGeocodeQuery = q
+        _uiState.update {
+            it.copy(message = "正在搜索「$q」…", routePoints = emptyList())
+        }
+        geocodeSearch.getFromLocationNameAsyn(GeocodeQuery(q, ""))
+    }
+
+    /** 解析"纬度,经度"：顺序不敏感（先纬度后经度，或反过来都能识别） */
+    private fun parseCoord(q: String): LatLng? {
+        val m = Regex("""(-?\d+(?:\.\d+)?)\s*[ ,，]\s*(-?\d+(?:\.\d+)?)""").find(q)
+            ?: return null
+        val a = m.groupValues[1].toDoubleOrNull() ?: return null
+        val b = m.groupValues[2].toDoubleOrNull() ?: return null
+        val (lat, lng) = if (a in -90.0..90.0) a to b
+        else if (b in -90.0..90.0) b to a
+        else return null
+        if (lng < -180.0 || lng > 180.0) return null
+        return LatLng(lat, lng)
+    }
+
+    /** 地理编码结果：取第一个候选，转成目的地坐标 */
+    private fun handleGeocode(result: GeocodeResult?, code: Int) {
+        val list = result?.geocodeAddressList
+        if (code != 1000 || list.isNullOrEmpty()) {
+            _uiState.update {
+                it.copy(message = "未找到「$lastGeocodeQuery」，换个关键词试试", routePoints = emptyList())
+            }
+            return
+        }
+        val addr = list.first()
+        val lp = addr.latLonPoint
+        if (lp == null) {
+            _uiState.update { it.copy(message = "未找到「$lastGeocodeQuery」") }
+            return
+        }
+        setDestination(LatLng(lp.latitude, lp.longitude), addr.formatAddress ?: lastGeocodeQuery)
     }
 
     /** 规划"我的位置 → 目的地"的驾车路线 */
@@ -106,7 +180,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update { it.copy(message = "请先长按地图选择目的地") }
             return
         }
-        _uiState.update { it.copy(message = "正在规划路线…", routePoints = emptyList()) }
+        _uiState.update { it.copy(message = "正在规划路线…", routePoints = emptyList(), planFailed = false) }
 
         val fromAndTo = RouteSearch.FromAndTo(
             LatLonPoint(from.latitude, from.longitude),
@@ -124,7 +198,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         val path = result?.paths?.firstOrNull()
         if (errorCode != 1000 || path == null) {   // 1000 = 成功
             _uiState.update {
-                it.copy(message = "路线规划失败（code=$errorCode）", routePoints = emptyList())
+                it.copy(message = "路线规划失败（code=$errorCode）", routePoints = emptyList(), planFailed = true)
             }
             return
         }

@@ -192,6 +192,13 @@ fun MapSourceManagerSheet(onDismiss: () -> Unit) {
             HorizontalDivider()
             Spacer(Modifier.height(12.dp))
 
+            // ---- 运动页自动等高线 ----
+            ContourSettingsSection()
+
+            Spacer(Modifier.height(16.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(12.dp))
+
             // ---- 自定义图源 ----
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("自定义图源", fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -421,6 +428,60 @@ fun MapSourceManagerSheet(onDismiss: () -> Unit) {
             },
             dismissButton = { TextButton(onClick = { pasteOpen = false }) { Text("取消") } }
         )
+    }
+}
+
+/**
+ * 运动页自动等高线设置：
+ * - 开关：进入运动页看地图时自动叠上等高线图层，退出自动还原全局叠加层；
+ * - 镜像地址：OpenTopoMap 官方源国内被墙，填一个可达的 XYZ 镜像（如自建反代）
+ *   即可在国内显示等高线。留空=回落内置 OpenTopoMap（仅海外可用）。
+ */
+@Composable
+private fun ContourSettingsSection() {
+    var enabled by remember { mutableStateOf(MapSourceStore.autoContourEnabled) }
+    val override = MapSourceStore.customOf("contour.override")
+    var url by remember(override) { mutableStateOf(override?.urlTemplate ?: "") }
+
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("运动页自动叠加等高线", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "进入运动页看地图时自动叠上等高线图层，退出自动还原。",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = enabled,
+                onCheckedChange = {
+                    enabled = it
+                    MapSourceStore.setContourEnabled(it)
+                }
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "当前等高线源：「${MapSourceStore.contourSource().name}」。" +
+                "OpenTopoMap 官方源国内不可达，填一个可达的 XYZ 镜像地址即可在国内显示" +
+                "（占位符 {z}{x}{y}，坐标系 WGS-84）。",
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = url,
+                onValueChange = { url = it },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                placeholder = { Text("等高线 XYZ 镜像地址（可空）") },
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Button(onClick = { MapSourceStore.setContourOverride(url) }) { Text("保存") }
+        }
     }
 }
 

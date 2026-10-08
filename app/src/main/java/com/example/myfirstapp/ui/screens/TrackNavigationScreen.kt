@@ -91,10 +91,9 @@ import kotlinx.coroutines.isActive
  * 不留僵尸通知；息屏或按 Home 键退到后台则继续导航。
  */
 @Composable
-fun TrackNavigationScreen(trackId: String, onExit: () -> Unit) {
+fun TrackNavigationScreen(track: Track, onExit: () -> Unit) {
     val context = LocalContext.current
     val repo = remember { TrackRepository.get(context) }
-    val track = remember(trackId) { repo.load(trackId) }
     val navState by TrackNavigator.state.collectAsStateWithLifecycle()
     val mapState = rememberMapSurfaceState("navigation")
     val arrowBitmap = remember { createArrowBitmap() }
@@ -108,14 +107,6 @@ fun TrackNavigationScreen(trackId: String, onExit: () -> Unit) {
         mutableStateOf(NavAlertSettings.current())
     }
     var showAlertSettings by remember { mutableStateOf(false) }
-
-    if (track == null) {
-        LaunchedEffect(Unit) {
-            Toast.makeText(context, "轨迹不存在", Toast.LENGTH_SHORT).show()
-            onExit()
-        }
-        return
-    }
 
     /**
      * 结束导航并退出页面：取出实际行走轨迹存档 + 停定位 + 停前台服务 + 返回。

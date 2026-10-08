@@ -35,6 +35,17 @@ object MapSourceStore {
     var activeOverlayId by mutableStateOf<String?>(null)
         private set
 
+    /** 运动页是否自动叠加等高线图层（进入看地图时自动叠，退出还原） */
+    var autoContourEnabled by mutableStateOf(true)
+        private set
+
+    /**
+     * 运动页自动叠加的等高线源 id：
+     * 用户填了镜像地址→自定义叠加源 "contour.override"（WGS-84），否则回落内置 opentopomap。
+     */
+    val contourSourceId: String
+        get() = if (customOf("contour.override") != null) "contour.override" else "opentopomap"
+
     @Volatile
     private var loaded = false
     private var appContext: Context? = null
@@ -55,6 +66,7 @@ object MapSourceStore {
                 tiandituKey = root.optString("tiandituKey", "")
                 activeBaseId = root.optString("activeBaseId", "amap.normal")
                 activeOverlayId = root.optString("activeOverlayId", "").ifEmpty { null }
+                autoContourEnabled = root.optBoolean("autoContour", true)
                 val arr = root.optJSONArray("customSources") ?: JSONArray()
                 val list = ArrayList<MapSource>(arr.length())
                 for (i in 0 until arr.length()) {
@@ -112,6 +124,7 @@ object MapSourceStore {
                 )
             }
             root.put("customSources", arr)
+            root.put("autoContour", autoContourEnabled)
             f.writeText(root.toString())
         }
         revision++
@@ -152,6 +165,48 @@ object MapSourceStore {
     fun updateTiandituKey(key: String) {
         tiandituKey = key.trim()
         save()
+    }
+
+    // ==================== 运动页自动等高线 ====================
+
+    /** 当前运动页自动叠加的等高线源（含用户镜像回退内置） */
+    fun contourSource(): MapSource =
+        findSource(contourSourceId) ?: MapSource.find("opentopomap")!!
+
+    /** 开关运动页自动等高线 */
+    fun setContourEnabled(on: Boolean) {
+        if (autoContourEnabled == on) return
+        autoContourEnabled = on
+        save()
+    }
+
+    /**
+     * 设置等高线镜像地址：
+     * - 非空 → 写入/更新自定义叠加源 "contour.override"（WGS-84，半透明叠加层）；
+     * - 空   → 移除镜像，回落内置 OpenTopoMap（国内网络不可达，仅海外可用）。
+     *
+     * 说明：OpenTopoMap 官方瓦片服务器在大陆被墙，要把 URL 换成可达的 XYZ 镜像
+     * （如自建反代）才能在国内显示等高线。占位符 {z}/{x}/{y}。
+     */
+    fun setContourOverride(url: String) {
+        val u = url.trim()
+        if (u.isBlank()) {
+            if (customSources.any { it.id == "contour.override" }) removeCustom("contour.override")
+            return
+        }
+        val normalized = MapSourceImporter.normalizeUrl(u)
+        val base = customOf("contour.override")
+            ?: MapSource(id = "contour.override", name = "等高线(镜像)")
+        val src = base.copy(
+            urlTemplate = normalized,
+            crs = TileCrs.WGS84,
+            minZoom = 3,
+            maxZoom = 17,
+            isOverlay = true,
+            builtin = false,
+            headers = emptyMap()
+        )
+        upsertCustom(src)
     }
 
     /** 新增或更新自定义图源；id 为空则视为新增（自动分配 UUID） */
