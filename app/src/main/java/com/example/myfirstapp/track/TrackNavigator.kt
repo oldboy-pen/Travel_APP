@@ -69,19 +69,25 @@ data class NavigationState(
 /**
  * 轨迹导航器（单例）：拿一条已保存的轨迹当"路线"来走，实时给出
  * 剩余里程 / 偏离距离 / 下一个途经点，并按两档阈值用 [VoiceAnnouncer] 语音预警：
- * 偏离 > [OFF_TRACK_ALERT_METERS]（20 米）开始预警；> [OFF_TRACK_SEVERE_METERS]
- * （50 米）播报实际偏离距离并提高补播频率。
+ * 偏离超过 [NavAlertSettings.alertMeters]（默认 20 米）开始预警；超过
+ * [NavAlertSettings.severeMeters]（默认 50 米）播报实际偏离距离并提高补播频率。
+ * 阈值与补播间隔都可在导航页「预警设置」里改。
  *
  * 与 [TrackRecorder] 同构：本类只管"算 + 播报"，保活交给
  * [TrackNavigationService]，因此息屏后状态与预警都不丢。
  *
  * 核心算法（每次定位都跑一遍）：
  * 1. 把当前位置投影到轨迹折线上，得到"偏离距离 + 沿轨迹里程"；
- * 2. 偏离 > 20 米且连续 2 次确认 → 进入偏离态并播报，回到 15 米内才解除
+ * 2. 偏离超过一级阈值且连续 2 次确认 → 进入偏离态并播报，回到阈值的 75% 以内才解除
  *    （迟滞设计：不设回差会在阈值附近来回抖动、反复播报）；
+ *    例外：一上来就超二级阈值时**免两次确认、单次定位立刻播报**——这个量级远超
+ *    GPS 误差，不可能是一次跳点，晚报 1 秒没有意义；
  * 3. 偏离中的补播按**走过的里程**触发（不是按时间，走得快就报得勤）：
- *    20~50 米每 1 公里一次；> 50 米每 200 米一次，并带上实际偏离距离；
+ *    一级每 [NavAlertSettings.reAlertMildMeters] 米一次、二级每
+ *    [NavAlertSettings.reAlertSevereMeters] 米一次，二级每次都带实际偏离距离；
  *    档位升级/降级会立刻补播一次，让人马上知道严重程度变了；
+ *    里程只累加"确实在移动"的定位（速度 < [MIN_MOVE_SPEED] 视为原地，
+ *    否则站着不动靠 GPS 抖动也能攒够 200 米、然后一直重复播报）；
  * 4. 剩余里程跨过整公里播报一次；终点 300 米内提示"即将到达"；
  * 5. 距终点 30 米内（或剩余里程 < 20 米）判定到达，播报后自动结束。
  *
@@ -89,34 +95,28 @@ data class NavigationState(
  */
 object TrackNavigator {
 
-    // ==================== 阈值（可调） ====================
+    // ==================== 阈值 ====================
 
     /**
-     * 一级偏离阈值：离开轨迹线超过该距离即开始语音预警（需求：20 米）。
-     * 该档只提示"已偏离 + 往哪边切回去"，不报具体距离。
+     * 偏离预警的阈值与补播间隔全部走 [NavAlertSettings]（导航页可随时改，改完下一次
+     * 定位即生效）。默认值在其 DEFAULT_* 常量里：一级 20 米、二级 50 米、
+     * 补播间隔 1000 米 / 200 米，迟滞解除线也由它按比例派生。
      */
-    const val OFF_TRACK_ALERT_METERS = 20.0
 
-    /**
-     * 二级偏离阈值：超过该距离说明偏得较远，播报**实际偏离距离**（需求：50 米），
-     * 且补播密度提高（每 [RE_ALERT_METERS_SEVERE] 米一次）。
-     */
-    const val OFF_TRACK_SEVERE_METERS = 50.0
-
-    /** 二级档的迟滞解除线：掉回该距离以内才退出"严重偏离"（防 50 米附近抖动） */
-    private const val OFF_TRACK_SEVERE_CLEAR_METERS = 45.0
-
-    /** 回到该距离以内才解除偏离态（迟滞，防止阈值附近反复播报） */
-    private const val OFF_TRACK_CLEAR_METERS = 15.0
-
-    /** 连续几次超限才认定偏离（单次可能是 GPS 跳点） */
+    /** 连续几次超限才认定偏离（单次可能是 GPS 跳点；超过二级阈值时不等，立即判定） */
     private const val OFF_TRACK_CONFIRM_FIXES = 2
 
-    /** 一级偏离（20~50 米）的补播间隔：每走 1 公里补播一次 */
-    private const val RE_ALERT_METERS_MILD = 1000.0
+    /**
+     * 低于该速度（米/秒，约 1.8 km/h）认为没在移动，本次位移不计入补播里程。
+     * 目的：静止时 GPS 每帧仍有几米漂移，不设门槛会出现"站着不动也被反复提醒"。
+     */
+    private const val MIN_MOVE_SPEED = 0.5f
 
-    /** 二级偏离（> 50 米）的补播间隔：每走 200 米补播一次 */
-    private const val RE_ALERT_METERS_SEVERE = 200.0
+    /** 单帧位移达到该米数也算移动（兜底：个别 ROM 的 loc.speed 恒为 0） */
+    private const val MIN_STEP_METERS = 5.0
+
+    /** 单帧位移上限（米）：信号恢复瞬间的跳点不能一次性把补播里程填满 */
+    private const val MAX_STEP_METERS = 300.0
 
     /** 距终点该距离内判定到达 */
     private const val ARRIVE_RADIUS_METERS = 30.0
@@ -188,6 +188,7 @@ object TrackNavigator {
         prepare(target)
 
         VoiceAnnouncer.ensureInit(ctx)
+        NavAlertSettings.ensureLoaded(ctx)   // 载入用户自定义的偏离阈值/补播间隔
         startedAt = android.os.SystemClock.elapsedRealtime()
         actualPoints.clear()
         actualDistance = 0.0
@@ -316,42 +317,60 @@ object TrackNavigator {
         val deviation = p.distance
         val now = System.currentTimeMillis()
 
-        // ---- 偏离判定：两档阈值 + 迟滞 + 连续确认 ----
-        //   一级（> 20 米）：提示"已偏离，往哪边切回去"，之后每走 1 公里补播一次；
-        //   二级（> 50 米）：播报实际偏离距离，之后每走 200 米补播一次（偏得越远提醒越勤）。
+        // ---- 偏离判定：两档阈值 + 迟滞 + 连续确认（阈值取自 NavAlertSettings，可在导航页改）----
+        //   一级（默认 20 米）：提示"已偏离，往哪边切回去"，之后每走 1 公里补播一次；
+        //   二级（默认 50 米）：播报实际偏离距离，之后每走 200 米补播一次（偏得越远提醒越勤）。
+        //   阈值/间隔每次定位都重新读，改完设置下一次定位即生效，无需重启导航。
+        val alertThreshold = NavAlertSettings.alertMeters
+        val severeThreshold = NavAlertSettings.severeMeters
+        val clearThreshold = NavAlertSettings.clearMeters
+        val severeClearThreshold = NavAlertSettings.severeClearMeters
         var offTrack = _state.value.offTrack
         var severe = _state.value.severeOffTrack
         var alertText: String? = null
 
-        // 补播里程基准 = 自上次播报以来实际走过的距离（GPS 位移累计，原地不动不累加）
+        // 补播里程基准 = 自上次播报以来**实际移动**过的距离（原地漂移不计）
+        // 判据二选一：速度达标（主，最可靠），或单帧位移够大（兜底个别 ROM 的 speed 恒 0）
         if (!lastFixLat.isNaN()) {
-            walkedSinceAlert += GeoUtils.distance(lastFixLat, lastFixLng, lat, lng)
+            val step = GeoUtils.distance(lastFixLat, lastFixLng, lat, lng)
+                .coerceAtMost(MAX_STEP_METERS)
+            if (speed >= MIN_MOVE_SPEED || step >= MIN_STEP_METERS) {
+                walkedSinceAlert += step
+            }
         }
         lastFixLat = lat
         lastFixLng = lng
 
-        if (deviation > OFF_TRACK_ALERT_METERS) {
+        if (deviation > alertThreshold) {
             offStreak++
-            if (!offTrack && offStreak >= OFF_TRACK_CONFIRM_FIXES) {
-                // 首次确认偏离：立刻播报一次
+            // 超过二级阈值远超 GPS 误差，单次定位即可判定，无需再等连续确认
+            val confirmed = offStreak >= OFF_TRACK_CONFIRM_FIXES ||
+                    deviation > severeThreshold
+            if (!offTrack && confirmed) {
+                // 首次确认偏离：立刻播报一次（超过二级阈值时这次就带实际距离）
                 offTrack = true
-                severe = deviation > OFF_TRACK_SEVERE_METERS
+                severe = deviation > severeThreshold
                 alertText = VoiceAnnouncer.buildDeviationMessage(deviation, p.side, severe)
             } else if (offTrack) {
-                // 档位判定（带迟滞）：>50 进二级，掉回 45 以内才退回一级
-                if (deviation > OFF_TRACK_SEVERE_METERS) severe = true
-                else if (deviation < OFF_TRACK_SEVERE_CLEAR_METERS) severe = false
+                // 档位判定（带迟滞）：过二级线上二级，掉到二级迟滞线以内才退回一级
+                if (deviation > severeThreshold) severe = true
+                else if (deviation < severeClearThreshold) severe = false
                 val level = if (severe) 2 else 1
-                val interval = if (severe) RE_ALERT_METERS_SEVERE else RE_ALERT_METERS_MILD
+                val interval =
+                    if (severe) NavAlertSettings.reAlertSevereMeters
+                    else NavAlertSettings.reAlertMildMeters
                 // 补播条件：走够间隔里程，或档位发生变化（升级/降级都让人立刻知道）
                 if (walkedSinceAlert >= interval || level != lastAlertLevel) {
                     alertText = VoiceAnnouncer.buildDeviationMessage(deviation, p.side, severe)
                 }
             }
-        } else if (deviation < OFF_TRACK_CLEAR_METERS) {
+        } else if (deviation < clearThreshold) {
+            // 回到轨迹上：解除偏离态，同时清掉补播计时与档位，下次再偏离按"首次"处理
             offStreak = 0
             offTrack = false
             severe = false
+            walkedSinceAlert = 0.0
+            lastAlertLevel = 0
         }
         if (alertText != null) {
             VoiceAnnouncer.announce(ctx, alertText)

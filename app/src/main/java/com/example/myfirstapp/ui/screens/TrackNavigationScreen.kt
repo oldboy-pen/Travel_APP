@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.LocationOn
@@ -37,6 +38,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -50,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -61,6 +64,7 @@ import com.example.myfirstapp.map.MapUiSettings
 import com.example.myfirstapp.map.rememberMapSurfaceState
 import com.example.myfirstapp.track.DeviationSide
 import com.example.myfirstapp.track.GeoUtils
+import com.example.myfirstapp.track.NavAlertSettings
 import com.example.myfirstapp.track.NavigationState
 import com.example.myfirstapp.track.NavigationStatus
 import com.example.myfirstapp.track.Track
@@ -74,8 +78,9 @@ import kotlinx.coroutines.isActive
 
 /**
  * 轨迹导航页：沿一条已保存的轨迹行进，实时显示剩余里程/进度/偏离距离，
- * 偏离超过 [TrackNavigator.OFF_TRACK_ALERT_METERS]（20 米）开始语音预警，
- * 超过 [TrackNavigator.OFF_TRACK_SEVERE_METERS]（50 米）播报实际偏离距离并加密补播。
+ * 偏离超过 [NavAlertSettings.alertMeters]（默认 20 米）开始语音预警，
+ * 超过 [NavAlertSettings.severeMeters]（默认 50 米）播报实际偏离距离并加密补播；
+ * 四项阈值均可在底部面板的「预警设置」里改。
  *
  * 分工（与记录页同构）：
  * - [TrackNavigator]：定位 + 投影计算 + 播报判定（单例，页面不在前台也活着）
@@ -97,6 +102,12 @@ fun TrackNavigationScreen(trackId: String, onExit: () -> Unit) {
     var followLocation by remember { mutableStateOf(true) }
     var voiceOn by remember { mutableStateOf(VoiceAnnouncer.isEnabled(context)) }
     var confirmExit by remember { mutableStateOf(false) }
+    // 偏离预警阈值/补播间隔（可点底部「预警设置」改，保存后立即生效）
+    var alertSettings by remember {
+        NavAlertSettings.ensureLoaded(context)
+        mutableStateOf(NavAlertSettings.current())
+    }
+    var showAlertSettings by remember { mutableStateOf(false) }
 
     if (track == null) {
         LaunchedEffect(Unit) {
@@ -242,8 +253,8 @@ fun TrackNavigationScreen(trackId: String, onExit: () -> Unit) {
                     )
                     Text(
                         "用时 ${GeoUtils.formatDuration(navState.elapsedMillis)} · " +
-                                "偏离预警 ${TrackNavigator.OFF_TRACK_ALERT_METERS.toInt()}" +
-                                "/${TrackNavigator.OFF_TRACK_SEVERE_METERS.toInt()} 米",
+                                "偏离预警 ${intOf(alertSettings.alertMeters)}" +
+                                "/${intOf(alertSettings.severeMeters)} 米",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -363,6 +374,21 @@ fun TrackNavigationScreen(trackId: String, onExit: () -> Unit) {
                         )
                     ) { Text("结束") }
                 }
+
+                // ---- 偏离预警设置：显示当前阈值/补播间隔，点开可改，保存后立即生效 ----
+                TextButton(
+                    onClick = { showAlertSettings = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "预警设置：偏离 ${intOf(alertSettings.alertMeters)} 米提醒 · " +
+                                "${intOf(alertSettings.severeMeters)} 米起报距离 · " +
+                                "补播 ${intOf(alertSettings.reAlertMildMeters)} / " +
+                                "${intOf(alertSettings.reAlertSevereMeters)} 米",
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 2
+                    )
+                }
             }
         }
 
@@ -389,6 +415,24 @@ fun TrackNavigationScreen(trackId: String, onExit: () -> Unit) {
                 }
             }
         }
+    }
+
+    // ---- 偏离预警设置 ----
+    if (showAlertSettings) {
+        NavAlertSettingsDialog(
+            current = alertSettings,
+            onDismiss = { showAlertSettings = false },
+            onSave = { a, s, m, sev ->
+                alertSettings = NavAlertSettings.save(context, a, s, m, sev)
+                showAlertSettings = false
+                Toast.makeText(context, "预警设置已生效", Toast.LENGTH_SHORT).show()
+            },
+            onReset = {
+                alertSettings = NavAlertSettings.reset(context)
+                showAlertSettings = false
+                Toast.makeText(context, "已恢复默认设置", Toast.LENGTH_SHORT).show()
+            }
+        )
     }
 
     // ---- 结束导航确认 ----
@@ -427,6 +471,79 @@ fun TrackNavigationScreen(trackId: String, onExit: () -> Unit) {
             }
         )
     }
+}
+
+/** 米数取整后转字符串（配置值都是整数米，避免显示 20.0 这种） */
+private fun intOf(meters: Double): String = meters.toInt().toString()
+
+/**
+ * 偏离预警设置弹窗：四个数值——一级提醒阈值、二级报距离阈值、各自的补播间隔（米）。
+ * 补播按**走过的里程**而非时间：走得快报得勤，站着不动不会被反复提醒。
+ * 非法输入（空/非数字）在保存时回退到原值；大小关系非法由 [NavAlertSettings.save] 收敛。
+ */
+@Composable
+private fun NavAlertSettingsDialog(
+    current: NavAlertSettings.Result,
+    onDismiss: () -> Unit,
+    onSave: (Double, Double, Double, Double) -> Unit,
+    onReset: () -> Unit
+) {
+    var alert by remember { mutableStateOf(intOf(current.alertMeters)) }
+    var severe by remember { mutableStateOf(intOf(current.severeMeters)) }
+    var mild by remember { mutableStateOf(intOf(current.reAlertMildMeters)) }
+    var severeIv by remember { mutableStateOf(intOf(current.reAlertSevereMeters)) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("偏离预警设置") },
+        text = {
+            Column {
+                Text(
+                    "超过「提醒阈值」开始预警；超过「报距离阈值」播报实际偏离距离。" +
+                            "补播按走过的里程计算，不是按时间。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(10.dp))
+                NumberField("提醒阈值（米）", alert) { alert = it }
+                Spacer(Modifier.height(6.dp))
+                NumberField("报距离阈值（米）", severe) { severe = it }
+                Spacer(Modifier.height(6.dp))
+                NumberField("轻度偏离补播间隔（米）", mild) { mild = it }
+                Spacer(Modifier.height(6.dp))
+                NumberField("严重偏离补播间隔（米）", severeIv) { severeIv = it }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onSave(
+                    alert.toDoubleOrNull() ?: current.alertMeters,
+                    severe.toDoubleOrNull() ?: current.severeMeters,
+                    mild.toDoubleOrNull() ?: current.reAlertMildMeters,
+                    severeIv.toDoubleOrNull() ?: current.reAlertSevereMeters
+                )
+            }) { Text("保存") }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClick = onReset) { Text("恢复默认") }
+                TextButton(onClick = onDismiss) { Text("取消") }
+            }
+        }
+    )
+}
+
+/** 纯数字输入框（米），空字符串允许中间态，保存时才由调用方兜底 */
+@Composable
+private fun NumberField(label: String, value: String, onChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = { onChange(it.filter { c -> c.isDigit() }) },
+        label = { Text(label) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
 /** 偏离状态条：正常（绿）/ 轻偏离（橙）/ 严重偏离（红，带方向提示）三套样式 */
