@@ -194,7 +194,11 @@ class TrackRepository private constructor(context: Context) {
             name = parsed.name ?: displayName?.substringBeforeLast('.') ?: "导入的轨迹",
             points = parsed.points,
             waypoints = parsed.waypoints
-        ).also { save(it) }
+        ).also {
+            save(it)
+            // 打「外部导入」标记：落盘后与本地录制的轨迹格式一致，只能靠这张表区分来源
+            TrackImportStore.get(context).mark(it.id)
+        }
     }.getOrNull()
 
     /** ContentProvider 查询文件显示名（用于按后缀识别 + 兜底命名） */

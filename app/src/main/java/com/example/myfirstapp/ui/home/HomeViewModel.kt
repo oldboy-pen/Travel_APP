@@ -99,14 +99,14 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                     // 本地已有（比如自己同步过的那条）就直接打开，省一次网络请求
                     val local = repo.load(route.id)
                     if (local != null) {
-                        store.mark(local.id)
+                        store.mark(local.id, route.ownerNickname)
                         local.id
                     } else {
                         val json = CloudTrackApi(serverUrl).downloadTrack(route.userId, route.id)
                             ?: error("服务器上没有这条线路的轨迹数据")
                         val track = repo.parseTrack(json)
                         repo.save(track)
-                        store.mark(track.id)
+                        store.mark(track.id, route.ownerNickname)
                         track.id
                     }
                 }.fold(

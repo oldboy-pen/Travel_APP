@@ -67,6 +67,9 @@ class UserRepository private constructor(context: Context) {
         _currentUser.value = null
     }
 
+    /** 全部本机账号（「我的」页的关注/粉丝需要列出可关注的人） */
+    fun allUsers(): List<UserAccount> = readAll()
+
     // ---------- 持久化 ----------
 
     private fun signIn(user: UserAccount) {

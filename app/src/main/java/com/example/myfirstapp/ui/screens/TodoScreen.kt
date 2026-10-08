@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
@@ -26,13 +27,23 @@ import com.example.myfirstapp.data.TodoViewModel
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TodoScreen(viewModel: TodoViewModel = viewModel()) {
+fun TodoScreen(
+    onBack: (() -> Unit)? = null,   // 从「我的 → 工具」进来时给个返回箭头
+    viewModel: TodoViewModel = viewModel()
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("我的待办") },
+                title = { Text("日常清单") },
+                navigationIcon = {
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer
                 )

@@ -1,5 +1,7 @@
 package com.example.myfirstapp.ui.navigation
 
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Hiking
@@ -27,10 +29,17 @@ import com.example.myfirstapp.track.TrackRecorder
 import com.example.myfirstapp.ui.screens.CloudAuthScreen
 import com.example.myfirstapp.ui.screens.HomeScreen
 import com.example.myfirstapp.ui.screens.LoginScreen
+import com.example.myfirstapp.ui.screens.CoordinateConverterScreen
+import com.example.myfirstapp.ui.screens.FootprintActivitiesScreen
+import com.example.myfirstapp.ui.screens.FootprintPhotosScreen
+import com.example.myfirstapp.ui.screens.FootprintTracksScreen
 import com.example.myfirstapp.ui.screens.MapScreen
+import com.example.myfirstapp.ui.screens.PaceConverterScreen
 import com.example.myfirstapp.ui.screens.RecordScreen
 import com.example.myfirstapp.ui.screens.TrackNavigationScreen
 import com.example.myfirstapp.ui.screens.RegisterScreen
+import com.example.myfirstapp.ui.screens.TodoScreen
+import com.example.myfirstapp.ui.screens.TrackSourceViewScreen
 import com.example.myfirstapp.ui.screens.TrackDetailScreen
 import com.example.myfirstapp.ui.screens.TrackHistoryScreen
 
@@ -96,10 +105,44 @@ fun AppRoot() {
             }
             composable("history") {
                 TrackHistoryScreen(
-                    onOpenTrack = { id -> navController.navigateToTrackDetail(id) },
                     onOpenAuth = { navController.navigate("login") },
-                    onOpenCloudAuth = { navController.navigate("cloudAuth") }
+                    onOpenCloudAuth = { navController.navigate("cloudAuth") },
+                    onOpenTracks = { navController.navigate("footprintTracks") },
+                    onOpenPhotos = { navController.navigate("footprintPhotos") },
+                    onOpenActivities = { navController.navigate("footprintActivities") },
+                    onOpenTodo = { navController.navigate("todo") },
+                    onOpenPace = { navController.navigate("pace") },
+                    onOpenCoord = { navController.navigate("coord") }
                 )
+            }
+            // ---- 「我的 → 足迹」三个子页（各自独立页，带返回键） ----
+            composable("footprintTracks") {
+                FootprintTracksScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenTrackSource = { id -> navController.navigate("trackView/$id") }
+                )
+            }
+            composable("footprintPhotos") {
+                FootprintPhotosScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenTrackSource = { id -> navController.navigate("trackView/$id") }
+                )
+            }
+            composable("footprintActivities") {
+                FootprintActivitiesScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenTrackSource = { id -> navController.navigate("trackView/$id") }
+                )
+            }
+            // ---- 「我的 → 工具」三个小工具（全屏页） ----
+            composable("todo") {
+                TodoScreen(onBack = { navController.popBackStack() })
+            }
+            composable("pace") {
+                PaceConverterScreen(onBack = { navController.popBackStack() })
+            }
+            composable("coord") {
+                CoordinateConverterScreen(onBack = { navController.popBackStack() })
             }
             composable("cloudAuth") {
                 CloudAuthScreen(onBack = { navController.popBackStack() })
@@ -117,6 +160,20 @@ fun AppRoot() {
                     // 注册入口固定是 我的 → 登录 → 注册，成功就把这两页一起弹掉
                     onSuccess = { navController.popBackStack("login", inclusive = true) },
                     onGoLogin = { navController.popBackStack() }
+                )
+            }
+            // 轨迹查看：从「我的 → 足迹」点轨迹弹出，先看来源与摘要，自底向上滑入
+            composable(
+                route = "trackView/{id}",
+                enterTransition = { slideInVertically(initialOffsetY = { it }) },
+                exitTransition = { slideOutVertically(targetOffsetY = { it }) },
+                popEnterTransition = { slideInVertically(initialOffsetY = { it }) },
+                popExitTransition = { slideOutVertically(targetOffsetY = { it }) }
+            ) { entry ->
+                TrackSourceViewScreen(
+                    trackId = entry.arguments?.getString("id").orEmpty(),
+                    onBack = { navController.popBackStack() },
+                    onOpenDetail = { id -> navController.navigate("track/$id") }
                 )
             }
             composable("track/{id}") { entry ->

@@ -166,14 +166,14 @@ fun TrackLoadSheet(
                 runCatching {
                     val local = repo.load(st.id)
                     if (local != null) {
-                        store.mark(local.id)
+                        store.mark(local.id, st.ownerNickname)
                         local
                     } else {
                         val json = CloudTrackApi(serverUrl).downloadTrack(st.userId, st.id)
                             ?: error("服务器上没有这条线路的轨迹数据")
                         val t = repo.parseTrack(json)
                         repo.save(t)
-                        store.mark(t.id)
+                        store.mark(t.id, st.ownerNickname)
                         t
                     }
                 }.fold(

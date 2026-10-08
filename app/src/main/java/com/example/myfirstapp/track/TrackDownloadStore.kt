@@ -25,19 +25,30 @@ class TrackDownloadStore private constructor(context: Context) {
 
     fun isDownloaded(id: String): Boolean = ids().contains(id)
 
-    /** 标记某条轨迹为"已下载" */
-    fun mark(id: String) {
-        prefs.edit().putStringSet(KEY, ids() + id).apply()
+    /** 标记某条轨迹为"已下载"，owner 是服务器上的作者昵称（查看页要显示"来自谁"） */
+    fun mark(id: String, owner: String? = null) {
+        prefs.edit()
+            .putStringSet(KEY, ids() + id)
+            .apply { owner?.takeIf { it.isNotBlank() }?.let { putString(KEY_OWNER_PREFIX + id, it) } }
+            .apply()
     }
 
     /** 取消标记（本地文件被删除 / 用户主动移除下载时使用） */
     fun unmark(id: String) {
-        prefs.edit().putStringSet(KEY, ids() - id).apply()
+        prefs.edit()
+            .putStringSet(KEY, ids() - id)
+            .remove(KEY_OWNER_PREFIX + id)
+            .apply()
     }
+
+    /** 这条下载轨迹的原作者昵称；没有记录返回 null */
+    fun ownerOf(id: String): String? =
+        prefs.getString(KEY_OWNER_PREFIX + id, null)?.takeIf { it.isNotBlank() }
 
     companion object {
         private const val PREFS = "downloaded_tracks"
         private const val KEY = "ids"
+        private const val KEY_OWNER_PREFIX = "owner_"
 
         @Volatile private var instance: TrackDownloadStore? = null
 

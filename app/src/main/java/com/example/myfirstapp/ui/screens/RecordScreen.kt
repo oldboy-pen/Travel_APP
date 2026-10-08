@@ -68,10 +68,10 @@ import com.example.myfirstapp.track.RecorderState
 import com.example.myfirstapp.track.StepSensorStatus
 import com.example.myfirstapp.track.Track
 import com.example.myfirstapp.track.TrackColorStore
-import com.example.myfirstapp.track.TrackDownloadStore
 import com.example.myfirstapp.track.TrackRecorder
 import com.example.myfirstapp.track.TrackRecordingService
 import com.example.myfirstapp.track.TrackRepository
+import com.example.myfirstapp.track.TrackSourceResolver
 
 /**
  * 运动记录页（两步路核心功能）：
@@ -128,11 +128,10 @@ fun RecordScreen(
         } else loadedTracks + track
     }
 
-    /** 删除本地轨迹：连带从地图撤掉，并取消「已下载」标记与自定义线色 */
+    /** 删除本地轨迹：连带从地图撤掉，并清掉来源标记（下载/导入）与自定义线色 */
     fun deleteTrack(track: Track) {
         TrackRepository.get(context).delete(track.id)
-        TrackDownloadStore.get(context).unmark(track.id)
-        TrackColorStore.clearOverlayColor(context, track.id)
+        TrackSourceResolver.clearMarks(context, track.id)
         loadedTracks = loadedTracks.filterNot { it.id == track.id }
         if (focusTrackId == track.id) focusTrackId = null
         localVersion++
