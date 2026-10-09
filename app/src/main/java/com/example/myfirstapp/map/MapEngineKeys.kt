@@ -38,6 +38,8 @@ object MapEngineKeys {
         MapEngineKind.AMAP -> META_AMAP
         MapEngineKind.TENCENT -> META_TENCENT
         MapEngineKind.BAIDU -> META_BAIDU
+        // osmdroid 是开源引擎，不需要任何 manifest Key
+        MapEngineKind.OSMDROID -> ""
     }
 
     /**
@@ -51,8 +53,9 @@ object MapEngineKeys {
         return appInfo.metaData?.getString(metaNameOf(kind)).orEmpty()
     }
 
-    /** Key 是否已真正配置（非空、且不是占位符） */
+    /** Key 是否已真正配置（非空、且不是占位符）；osmdroid 无 Key，恒可用 */
     fun isConfigured(kind: MapEngineKind): Boolean {
+        if (kind == MapEngineKind.OSMDROID) return true
         val v = rawOf(kind)
         return v.isNotBlank() && !v.startsWith(PLACEHOLDER_PREFIX)
     }

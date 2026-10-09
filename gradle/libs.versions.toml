@@ -1,5 +1,5 @@
 [versions]
-agp = "8.5.2"           # Android Gradle Plugin，需与 Android Studio 版本匹配
+agp = "8.13.2"           # Android Gradle Plugin，需与 Android Studio 版本匹配
 kotlin = "2.0.20"
 lifecycle = "2.8.6"
 activityCompose = "1.9.2"
@@ -15,6 +15,9 @@ tencentMapSdk = "6.13.0.260731.bb0666d5.209828299"
 tencentFoundation = "0.9.1.6875646"
 # 百度：地图组件（会传递依赖 com.baidu.lbsyun:base，SDKInitializer 在 base 里）
 baiduMapSdk = "8.2.0.2"
+# osmdroid：开源地图引擎（WGS84 原生渲染），承接天地图/OpenTopoMap 等 WGS84 瓦片图源，
+#   免去高德引擎上的逐像素 GCJ↔WGS 重投影；Maven Central 最新 6.1.20
+osmdroid = "6.1.20"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -40,9 +43,11 @@ tencent-map-sdk = { group = "com.tencent.map", name = "tencent-map-vector-sdk", 
 tencent-map-foundation = { group = "com.tencent.openmap", name = "foundation", version.ref = "tencentFoundation" }
 # 百度地图（BD-09，App 内统一用 GCJ-02，由 BaiduMapEngine 负责转换）
 baidu-map-sdk = { group = "com.baidu.lbsyun", name = "BaiduMapSDK_Map", version.ref = "baiduMapSdk" }
+# osmdroid 引擎（WGS84 瓦片原生渲染，天地图/OpenTopoMap 图源专用）
+osmdroid = { group = "org.osmdroid", name = "osmdroid-android", version.ref = "osmdroid" }
 
 # 天地图：不接 SDK、无任何依赖。瓦片走官方 REST API（DataServer?T=vec_w&tk=Key），
-#   tdt.* 内置图源 + CustomTileProvider 在高德引擎上叠加渲染；Key 存 MapSourceStore.tiandituKey。
+#   tdt.* 图源为 WGS84，由 osmdroid 引擎原生渲染（旧路径：高德引擎 + CustomTileProvider 重投影）。
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -24,16 +24,17 @@ enum class NativeMapType(val kind: MapEngineKind, val code: String) {
 /**
  * 瓦片图源坐标系。
  * - GCJ02：高德/腾讯，与 App 地图（高德）同坐标系，直接叠加无偏差；
- * - WGS84：天地图/OpenTopoMap 等，需逐像素 GCJ→WGS 反算重投影；
- * - BD09：百度，需 GCJ→BD09→百度墨卡托逐像素重投影。
+ * - WGS84：天地图/OpenTopoMap 等，由 **osmdroid 引擎原生渲染**（osmdroid 本身就是 WGS-84
+ *   网格，原样下载贴图，无需逐像素重投影；业务层 GCJ-02 坐标在引擎边界转 WGS-84）；
+ * - BD09：百度，仅自定义 BD09 图源时在【高德引擎】上逐像素重投影。
  *
  * 注意：本枚举只对【瓦片叠加】有意义；走厂商原生 SDK 的图源（nativeType != null）
  * 不需要 CRS 换算 —— SDK 渲染引擎自己处理坐标系。
  */
 enum class TileCrs(val label: String) {
     GCJ02("GCJ-02（高德/腾讯，无偏差）"),
-    WGS84("WGS-84（天地图/OSM，自动纠偏）"),
-    BD09("BD-09（百度，自动纠偏）")
+    WGS84("WGS-84（天地图/OSM，osmdroid 原生渲染）"),
+    BD09("BD-09（百度，高德上重投影）")
 }
 
 /**
@@ -74,12 +75,22 @@ data class MapSource(
      * 复合图层：多个 XYZ 瓦片 URL 模板，按列表顺序从下到上合成一张瓦片。
      * 例如天地图「地形(晕渲+等高线注记)」= ter_w（底，晕渲）+ cta_w（上，等高线注记）。
      * 非空时覆盖 [urlTemplate] 单独渲染；所有子层共享 subdomains / crs / minZoom /
-     * maxZoom / needsKey / headers，且同样走 [CustomTileProvider] 的逐像素重投影。
+     * maxZoom / needsKey / headers。
+     * 路由遵循 [engineKind]：WGS84 子层（天地图矢量/卫星/地形）由 osmdroid 引擎原生渲染，
+     * 不再走 [CustomTileProvider] 逐像素重投影；GCJ02/BD09 子层仍由高德 CustomTileProvider 叠加。
      */
     val layers: List<String> = emptyList()
 ) {
-    /** 这张图由哪家 SDK 渲染；瓦片图源没有原生 SDK，统一回落高德容器 */
-    val engineKind: MapEngineKind get() = nativeType?.kind ?: MapEngineKind.AMAP
+    /** 这张图由哪家引擎渲染：
+     *  厂商原生图源 → 对应厂商 SDK；
+     *  WGS84 瓦片图源（天地图/OpenTopoMap/自定义 WGS）→ osmdroid 原生渲染（免重投影）；
+     *  其余瓦片图源（GCJ02/BD09）→ 高德引擎 + CustomTileProvider 叠加 */
+    val engineKind: MapEngineKind
+        get() = when {
+            nativeType != null -> nativeType!!.kind
+            isTileSource && crs == TileCrs.WGS84 -> MapEngineKind.OSMDROID
+            else -> MapEngineKind.AMAP
+        }
 
     /** 是否是"抓瓦片叠加"的图源（没有原生 SDK 可走） */
     val isTileSource: Boolean get() = nativeType == null && (urlTemplate.isNotBlank() || layers.isNotEmpty())
@@ -129,8 +140,8 @@ data class MapSource(
             //      服务地址 https://t{0-7}.tianditu.gov.cn/DataServer?T=<图层>&x=&y=&l=&tk=<Key>，
             //      图层代码：vec_w 矢量 / img_w 卫星 / ter_w 地形晕渲 /
             //               cva_w 矢量注记 / cia_w 卫星注记 / cta_w 等高线注记（均 Web 墨卡托 WGS84）。
-            //      底图用「图层+对应注记」复合成一张不透明瓦片，由 CustomTileProvider 逐像素
-            //      GCJ→WGS 重投影后叠在高德引擎上渲染，坐标系自动对齐轨迹。
+            //      WGS84 图源由 **osmdroid 引擎原生渲染**（同坐标系，无需逐像素重投影）；
+            //      业务层 GCJ-02 坐标在引擎边界转 WGS-84，轨迹/蓝点与底图天然对齐。
             //      Key（tk）在「图源管理」面板填写，与任何 SDK 无关。
             MapSource(
                 "tdt.vec", "天地图矢量",
@@ -164,7 +175,8 @@ data class MapSource(
                 isOverlay = true, needsKey = true, builtin = true, attribution = "© 天地图"
             ),
             // 天地图地形（ter_w + cta_w 双图层复合）：晕渲打底 + 等高线注记叠加，合成一张不透明地形图；
-            // 可作为底图单独选用，与 App 的 GCJ-02 坐标系天然对齐（WGS84 图源走逐像素重投影）。
+            // 可作为底图单独选用，由 osmdroid 引擎原生渲染（WGS84 同坐标系，业务层 GCJ-02 在引擎
+            // 边界转 WGS-84，无需逐像素重投影）。
             MapSource(
                 "tdt.terrain", "天地图地形(晕渲+等高线)",
                 layers = listOf(
@@ -174,9 +186,9 @@ data class MapSource(
                 subdomains = "01234567", crs = TileCrs.WGS84, minZoom = 3, maxZoom = 13,
                 needsKey = true, builtin = true, attribution = "© 天地图"
             ),
-            // 等高线：OpenTopoMap（OSM+SRTM，全球覆盖，z17）。WGS84 图源，叠加在 GCJ-02 底图上时
-            // 由 CustomTileProvider 逐像素 GCJ→WGS 反算重投影，自动纠偏；国内服务器在境外，弱网/被墙时
-            // 可改用「等高线镜像」(MapSourceStore.setContourOverride) 或上面的天地图等高线注记。
+            // 等高线：OpenTopoMap（OSM+SRTM，全球覆盖，z17）。WGS84 图源，由 **osmdroid 引擎原生渲染**
+            // （路由到 osmdroid 底图时与 WGS84 底图天然对齐，无需重投影）；国内服务器在境外，弱网/被墙时
+            // 可改用「等高线镜像」(MapSourceStore.setContourOverride) 或上面的天地图等高线注记（同样 WGS84，走 osmdroid）。
             MapSource(
                 "opentopomap", "等高线(OpenTopoMap)",
                 "https://tile.opentopomap.org/{z}/{x}/{y}.png",

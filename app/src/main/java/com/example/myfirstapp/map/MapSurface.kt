@@ -83,11 +83,14 @@ fun MapSurface(
     val base: MapSource =
         if (MapEngineKeys.isConfigured(rawBase.engineKind)) rawBase
         else MapSource.find("amap.normal")!!
+    val kind = base.engineKind
+    // 叠加层只在「它的坐标系引擎 == 当前底图引擎」时才应用：
+    // - WGS84 叠加层（天地图标注/等高线/OpenTopoMap）只在 osmdroid 底图上渲染，不再到高德上逐像素重投影；
+    // - GCJ02/BD09 叠加层只在高德底图上渲染（腾讯/百度引擎本就不支持第三方瓦片叠加，原为空实现）。
     val resolvedOverlay =
-        if (rawOverlay == null || MapEngineKeys.isConfigured(rawOverlay.engineKind)) rawOverlay
+        if (rawOverlay == null || rawOverlay.engineKind == kind) rawOverlay
         else null
 
-    val kind = base.engineKind
     val engine = remember(pageKey, kind) { MapEnginePool.get(pageKey, kind, context) }
 
     LaunchedEffect(engine) { state.engine = engine }

@@ -155,7 +155,7 @@ fun TrackDetailScreen(
         if (amapView == null) {
             Toast.makeText(
                 context,
-                "生成3D视频需要高德底图：请先在右上角图层面板切回「高德矢量/卫星」",
+                "生成3D视频需要高德底图（腾讯/百度/osmdroid 底图暂不支持）：请先在右上角图层面板切回「高德矢量/卫星」",
                 Toast.LENGTH_LONG
             ).show()
             return

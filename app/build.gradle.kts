@@ -80,9 +80,12 @@ dependencies {
     // 百度地图（原生引擎，map.BaiduMapEngine 用；会传递依赖 com.baidu.lbsyun:base）
     implementation(libs.baidu.map.sdk)
 
-    // 天地图：不引入任何 SDK/依赖。官方瓦片服务就是 REST API
+    // 天地图：不引入官方 SDK。瓦片走官方 REST API
     // （https://t{0-7}.tianditu.gov.cn/DataServer?T=vec_w&...&tk=Key），
-    // 由 tdt.* 内置图源 + CustomTileProvider 在高德引擎上叠加渲染，Key 在图源管理面板填写。
+    // tdt.* 图源是 WGS84 瓦片，由 osmdroid 引擎原生渲染（无重投影）；Key 在图源管理面板填写。
+
+    // osmdroid：开源地图引擎，WGS84 原生渲染天地图/OpenTopoMap/自定义 WGS 图源
+    implementation(libs.osmdroid)
 
     // 二维码：扫码添加图源（embedded 内置 CaptureActivity）+ 生成分享二维码
     implementation(libs.zxing.embedded)

@@ -23,6 +23,7 @@ import com.example.myfirstapp.mapsources.CustomTileProvider
 import com.example.myfirstapp.mapsources.MapSource
 import com.example.myfirstapp.mapsources.MapSourceStore
 import com.example.myfirstapp.mapsources.NativeMapType
+import com.example.myfirstapp.mapsources.TileCrs
 
 /**
  * 高德引擎。
@@ -117,6 +118,9 @@ class AMapEngine(context: Context) : MapEngine {
 
     override fun applyOverlay(source: MapSource?) {
         clearOverlayTile()
+        // WGS84 图源由 osmdroid 引擎原生渲染（免重投影）。此处做纵深防御：即使上游路由异常、
+        // WGS84 叠加层被误传到高德，也绝不走高德的逐像素 GCJ→WGS 重投影（那样会偏移几百米）。
+        if (source?.crs == TileCrs.WGS84) return
         // 瓦片叠加层只有这一条路可走（腾讯/百度原生引擎不支持往自己的地图上贴第三方瓦片），
         // 非瓦片图源（各家的原生样式）不参与叠加。
         if (source?.isTileSource == true) {

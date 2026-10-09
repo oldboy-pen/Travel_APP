@@ -40,6 +40,7 @@ object MapEnginePool {
         MapEngineKind.AMAP -> AMapEngine(ctx)
         MapEngineKind.TENCENT -> TencentMapEngine(ctx)
         MapEngineKind.BAIDU -> BaiduMapEngine(ctx)
+        MapEngineKind.OSMDROID -> OsmdroidEngine(ctx)
     }
 
     /** Activity 销毁：释放某个页面持有的全部地图实例 */

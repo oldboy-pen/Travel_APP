@@ -1,308 +1,54 @@
 package com.example.myfirstapp.mapsources
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.util.LruCache
 import com.amap.api.maps.model.Tile
 import com.amap.api.maps.model.TileProvider
 import java.io.ByteArrayOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
-import kotlin.math.abs
-import kotlin.math.floor
-import kotlin.math.roundToInt
 
 /**
- * 自定义瓦片 Provider：把 XYZ URL 模板图源接入高德地图。
+ * 高德引擎的瓦片 Provider：把 XYZ URL 模板图源接入高德地图。
  *
- * 三种坐标系处理：
- * - GCJ02：URL 直接替换占位符下载（腾讯/高德系瓦片，网格与高德一致）；
- * - WGS84：天地图等。高德按 GCJ-02 请求瓦片，需逐像素 GCJ→WGS 反算后
- *   在 WGS84 网格中取样，否则偏 300~600 米；
- * - BD09：百度。需 GCJ→BD09→百度墨卡托(LL2MC)→百度瓦片网格（原点在赤道/
- *   本初子午线，y 向上，z18=1m/px）逐像素重投影。
+ * 像素级的下载/重投影/合成逻辑已抽到引擎无关的 [TileRasterizer]，
+ * 本类只负责：目标网格固定 GCJ-02（高德坐标系）+ 把像素编码为高德 [Tile]。
  *
- * 重投影性能：目标瓦片内坐标系偏移场变化平缓，先在 17×17 网格点做精确换算，
- * 中间像素双线性插值（误差远小于 1 像素），单瓦片耗时毫秒级。
+ * ★ WGS84 图源（天地图/OpenTopoMap 等）不再经过本类 —— 它们由 **osmdroid 引擎原生渲染**
+ *   （见 MapSource.engineKind 路由），无需逐像素重投影。本类现在只服务于高德引擎上的
+ *   GCJ02 / BD09 瓦片图源：GCJ02 同网格直接下载，BD09 仍需逐像素重投影。
  *
- * 高德 SDK 在子线程调用 getTile（其自带 UrlTileProvider 即阻塞网络下载），
- * 本类同样允许阻塞。
+ * 高德 SDK 在子线程调用 getTile（其自带 UrlTileProvider 即阻塞网络下载），允许阻塞。
  */
 class CustomTileProvider(
     private val source: MapSource,
     private val tkProvider: () -> String
 ) : TileProvider {
 
-    companion object {
-        private const val TAG = "CustomTileProvider"
-        private const val TILE = 256
-        private const val GRID_STEP = 16          // 网格点间距（像素）
-        private const val N_GRID = TILE / GRID_STEP + 1
-
-        /** 源瓦片像素缓存（全图源共享）：key = "sourceId:z:x:y"。
-         *  sizeOf 按 KB 计（256×256×4 ≈ 256KB/张），maxSize 16MB ≈ 64 张。
-         *  注意 maxSize 必须远大于单张 KB 数，否则 put 即被逐出、缓存完全失效。 */
-        private val tileCache = object : LruCache<String, IntArray>(16 * 1024) {
-            override fun sizeOf(key: String, value: IntArray) = value.size / 1024 // KB
-        }
-    }
-
-    override fun getTileWidth() = TILE
-    override fun getTileHeight() = TILE
+    override fun getTileWidth() = TileRasterizer.TILE
+    override fun getTileHeight() = TileRasterizer.TILE
 
     override fun getTile(x: Int, y: Int, zoom: Int): Tile? {
         if (zoom < source.minZoom || zoom > source.maxZoom) return TileProvider.NO_TILE
-        return try {
-            if (source.layers.isNotEmpty()) {
-                // 复合图层（如天地图「晕渲+等高线」）：逐层取像素后 alpha 合成一张瓦片
-                compositeTile(x, y, zoom)
-            } else {
-                when (source.crs) {
-                    TileCrs.GCJ02 -> fetchDirect(x, y, zoom)
-                    TileCrs.WGS84, TileCrs.BD09 -> reprojected(x, y, zoom)
-                }
-            }
-        } catch (t: Throwable) {
-            // 失败打日志便于真机排查（图源空白时过滤 "TileProvider" 即可看到具体原因）
-            android.util.Log.w(TAG, "tile fail id=${source.id} z=$zoom x=$x y=$y: ${t}")
-            TileProvider.NO_TILE
-        }
-    }
-
-    // ==================== GCJ02：直接下载 ====================
-
-    private fun fetchDirect(x: Int, y: Int, zoom: Int): Tile? {
-        val url = renderUrl(source.urlTemplate, x, y, zoom)
-        val bytes = download(url) ?: return TileProvider.NO_TILE
-        return Tile.obtain(TILE, TILE, bytes)
-    }
-
-    /** 渲染 URL 模板；{s} 用 (x+y) 轮换子域名做简单负载均衡 */
-    private fun renderUrl(template: String, x: Int, y: Int, zoom: Int): String =
-        renderUrlWithCoords(template, x.toString(), y.toString(), zoom, x, y)
-
-    // ==================== WGS84 / BD09：逐像素重投影 ====================
-
-    /** 单图层重投影，返回 256×256 ARGB 像素数组（不编码）。复合图层据此逐层生成再合成 */
-    private fun reprojectedPixels(template: String, x: Int, y: Int, zoom: Int): IntArray {
-        // 1. 17×17 网格点精确换算：目标瓦片像素 → 源瓦片全球像素
-        val gx = DoubleArray(N_GRID * N_GRID)
-        val gy = DoubleArray(N_GRID * N_GRID)
-        for (j in 0 until N_GRID) {
-            for (i in 0 until N_GRID) {
-                val px = (i * GRID_STEP).coerceAtMost(TILE - 1)
-                val py = (j * GRID_STEP).coerceAtMost(TILE - 1)
-                val sp = sourcePixelOf(x, y, zoom, px, py)
-                gx[j * N_GRID + i] = sp[0]
-                gy[j * N_GRID + i] = sp[1]
-            }
-        }
-
-        // 2. 逐像素双线性插值取样
-        val dest = IntArray(TILE * TILE)
-        for (py in 0 until TILE) {
-            val fj = (py.toFloat() / GRID_STEP).coerceAtMost(N_GRID - 1.001f)
-            val j0 = fj.toInt(); val jw = fj - j0
-            for (px in 0 until TILE) {
-                val fi = (px.toFloat() / GRID_STEP).coerceAtMost(N_GRID - 1.001f)
-                val i0 = fi.toInt(); val iw = fi - i0
-                val s00 = j0 * N_GRID + i0
-                val fx = gx[s00] * (1 - iw) * (1 - jw) + gx[s00 + 1] * iw * (1 - jw) +
-                        gx[s00 + N_GRID] * (1 - iw) * jw + gx[s00 + N_GRID + 1] * iw * jw
-                val fy = gy[s00] * (1 - iw) * (1 - jw) + gy[s00 + 1] * iw * (1 - jw) +
-                        gy[s00 + N_GRID] * (1 - iw) * jw + gy[s00 + N_GRID + 1] * iw * jw
-                dest[py * TILE + px] = sampleSourcePixel(template, fx, fy, zoom)
-            }
-        }
-        return dest
-    }
-
-    /** 单图层重投影并编码为 PNG 瓦片 */
-    private fun reprojected(x: Int, y: Int, zoom: Int): Tile? {
-        val pixels = reprojectedPixels(source.urlTemplate, x, y, zoom)
+        // 复合图层（source.layers）或多模板；单模板退化为 [urlTemplate]
+        val templates = if (source.layers.isNotEmpty()) source.layers
+        else if (source.urlTemplate.isNotBlank()) listOf(source.urlTemplate)
+        else return TileProvider.NO_TILE
+        val pixels = TileRasterizer.rasterize(
+            templates, x, y, zoom,
+            sourceCrs = source.crs,
+            targetCrs = TileCrs.GCJ02,            // 高德目标网格固定 GCJ-02
+            subdomains = source.subdomains,
+            headers = source.headers,
+            cacheKeyPrefix = source.id,
+            tkProvider = tkProvider
+        ) ?: return TileProvider.NO_TILE
         return encode(pixels)
-    }
-
-    /**
-     * 复合图层：按顺序合成 source.layers 中每个 XYZ 模板的瓦片像素（index 0 在底，逐层向上叠加）。
-     * 每层各自走 GCJ-02 重投影（WGS84/BD09）或直接下载（GCJ02），再 alpha 合成。
-     */
-    private fun compositeTile(x: Int, y: Int, zoom: Int): Tile? {
-        var acc: IntArray? = null
-        for (tpl in source.layers) {
-            val layer = if (source.crs == TileCrs.GCJ02) {
-                fetchDirectPixels(tpl, x, y, zoom)
-            } else {
-                reprojectedPixels(tpl, x, y, zoom)
-            } ?: continue
-            if (acc == null) acc = layer else blend(acc, layer)
-        }
-        val finalPixels = acc ?: return TileProvider.NO_TILE
-        return encode(finalPixels)
-    }
-
-    /** 直接下载单个图层瓦片并解出像素（GCJ02 复合图层用） */
-    private fun fetchDirectPixels(template: String, x: Int, y: Int, zoom: Int): IntArray? {
-        val url = renderUrlWithCoords(template, x.toString(), y.toString(), zoom, x, y)
-        val bytes = download(url) ?: return null
-        val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
-        val pixels = IntArray(TILE * TILE)
-        bmp.getPixels(pixels, 0, TILE, 0, 0, TILE, TILE)
-        bmp.recycle()
-        return pixels
-    }
-
-    /** 把 src 以标准 source-over 方式合成到 dst 上（dst 被原地修改） */
-    private fun blend(dst: IntArray, src: IntArray) {
-        for (i in dst.indices) {
-            val sa = (src[i] shr 24) and 0xFF
-            if (sa == 0) continue
-            if (sa == 255) { dst[i] = src[i]; continue }
-            val da = (dst[i] shr 24) and 0xFF
-            val sr = src[i] and 0xFF; val sg = (src[i] shr 8) and 0xFF; val sb = (src[i] shr 16) and 0xFF
-            val dr = dst[i] and 0xFF; val dg = (dst[i] shr 8) and 0xFF; val db = (dst[i] shr 16) and 0xFF
-            val na = sa + da * (255 - sa) / 255
-            if (na == 0) { dst[i] = 0; continue }
-            val nr = (sr * sa + dr * da * (255 - sa) / 255) / na
-            val ng = (sg * sa + dg * da * (255 - sa) / 255) / na
-            val nb = (sb * sa + db * da * (255 - sa) / 255) / na
-            dst[i] = (na shl 24) or (nb shl 16) or (ng shl 8) or nr
-        }
     }
 
     /** 把 ARGB 像素数组编码为 PNG 瓦片 */
     private fun encode(pixels: IntArray): Tile {
-        val bmp = Bitmap.createBitmap(TILE, TILE, Bitmap.Config.ARGB_8888)
-        bmp.setPixels(pixels, 0, TILE, 0, 0, TILE, TILE)
+        val bmp = TileRasterizer.toBitmap(pixels)
         val bos = ByteArrayOutputStream()
         bmp.compress(Bitmap.CompressFormat.PNG, 100, bos)
         bmp.recycle()
-        return Tile.obtain(TILE, TILE, bos.toByteArray())
-    }
-
-    /**
-     * 目标瓦片内像素 → 源瓦片全球像素坐标（浮点）。
-     * 目标网格是高德的 GCJ-02 Web 墨卡托（y 向下）。
-     */
-    private fun sourcePixelOf(x: Int, y: Int, zoom: Int, px: Int, py: Int): DoubleArray {
-        val gcj = GeoTransform.tilePixelToLatLng(x, y, zoom, px, py)
-        return when (source.crs) {
-            TileCrs.WGS84 -> {
-                val wgs = GeoTransform.gcj02ToWgs84(gcj[0], gcj[1])
-                GeoTransform.latLngToGlobalPixel(wgs[1], wgs[0], zoom) // y 向下
-            }
-            TileCrs.BD09 -> {
-                val bd = GeoTransform.gcj02ToBd09(gcj[0], gcj[1])
-                val mc = GeoTransform.bd09ToBd09Mc(bd[0], bd[1])
-                GeoTransform.bd09McToBaiduPixel(mc[0], mc[1], zoom)    // y 向上
-            }
-            TileCrs.GCJ02 -> doubleArrayOf(
-                x * TILE + px.toDouble(), y * TILE + py.toDouble()
-            )
-        }
-    }
-
-    /** 源全球像素（浮点，坐标系取决于 crs）→ 最近邻取样像素颜色；取不到返回透明 */
-    private fun sampleSourcePixel(tpl: String, fx: Double, fy: Double, zoom: Int): Int {
-        val tileX = floor(fx / TILE).toInt()
-        val tileY = floor(fy / TILE).toInt()
-        val inX = (fx - tileX * TILE).roundToInt().coerceIn(0, TILE - 1)
-        val inY = (fy - tileY * TILE).roundToInt().coerceIn(0, TILE - 1)
-        val pixels = sourceTilePixels(tpl, tileX, tileY, zoom) ?: return 0
-        return pixels[inY * TILE + inX]
-    }
-
-    /** 下载源瓦片并解出像素（带全局缓存）；tpl 指定具体图层模板（复合图层各层用各自的 URL） */
-    private fun sourceTilePixels(tpl: String, tileX: Int, tileY: Int, zoom: Int): IntArray? {
-        val key = "${source.id}:${tpl.hashCode()}:$zoom:$tileX:$tileY"
-        synchronized(tileCache) { tileCache.get(key) }?.let { return it }
-
-        // BD09 网格负瓦片号需加 M 前缀；WGS84/XYZ 不会有负号（超出±180°/±85° 无瓦片）
-        val xStr: String
-        val yStr: String
-        if (source.crs == TileCrs.BD09) {
-            xStr = GeoTransform.baiduTileCoord(tileX)
-            yStr = GeoTransform.baiduTileCoord(tileY)
-        } else {
-            if (tileX < 0 || tileY < 0 ||
-                tileX >= (1 shl zoom) || (source.crs == TileCrs.WGS84 && tileY >= (1 shl zoom))
-            ) return null
-            xStr = tileX.toString()
-            yStr = tileY.toString()
-        }
-        val url = renderUrlWithCoords(tpl, xStr, yStr, zoom, tileX, tileY)
-        val bytes = download(url) ?: return null
-        val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
-        val pixels = IntArray(TILE * TILE)
-        bmp.getPixels(pixels, 0, TILE, 0, 0, TILE, TILE)
-        bmp.recycle()
-        synchronized(tileCache) { tileCache.put(key, pixels) }
-        return pixels
-    }
-
-    /** 与 renderUrl 相同，但允许覆盖 x/y 的字符串形式（百度 M 前缀用） */
-    private fun renderUrlWithCoords(
-        template: String, xStr: String, yStr: String, zoom: Int,
-        rawX: Int, rawY: Int
-    ): String {
-        val tmsY = if (zoom in 0..30) GeoTransform.tmsY(rawY, zoom) else rawY
-        var url = template
-            .replace("{z}", zoom.toString())
-            .replace("{x}", xStr)
-            .replace("{y}", yStr)
-            .replace("{-y}", tmsY.toString())
-            .replace("{sx}", (abs(rawX) shr 4).toString())
-            .replace("{sy}", (abs(tmsY) shr 4).toString())
-            .replace("{tk}", tkProvider())
-        if (url.contains("{s}")) {
-            val subs = source.subdomains
-            val s = if (subs.isEmpty()) "0" else subs[((abs(rawX) + abs(rawY)) % subs.length)].toString()
-            url = url.replace("{s}", s)
-        }
-        return url
-    }
-
-    // ==================== 网络下载 ====================
-
-    /**
-     * 下载瓦片：失败自动重试一次（弱网/CDN 偶发 RST 场景明显提升成功率）。
-     * 仍失败时打日志（不抛异常，上层按 NO_TILE 处理显示透明瓦片）。
-     */
-    private fun download(url: String): ByteArray? {
-        repeat(2) { attempt ->
-            val bytes = runCatching {
-                val conn = URL(url).openConnection() as HttpURLConnection
-                conn.connectTimeout = 10_000
-                conn.readTimeout = 15_000
-                conn.instanceFollowRedirects = true
-                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
-                // 自定义请求头（防盗链）：Referer / 自定义 UA / Authorization 等，覆盖默认值
-                for ((k, v) in source.headers) {
-                    conn.setRequestProperty(k, v)
-                }
-                try {
-                    if (conn.responseCode != 200) {
-                        if (attempt == 1) android.util.Log.w(TAG, "HTTP ${conn.responseCode} $url")
-                        null
-                    } else {
-                        conn.inputStream.use { input ->
-                            val bos = ByteArrayOutputStream()
-                            val buf = ByteArray(32 * 1024)
-                            while (true) {
-                                val n = input.read(buf)
-                                if (n < 0) break
-                                bos.write(buf, 0, n)
-                            }
-                            if (bos.size() == 0) null else bos.toByteArray()
-                        }
-                    }
-                } finally {
-                    conn.disconnect()
-                }
-            }.getOrNull()
-            if (bytes != null) return bytes
-            if (attempt == 0) android.util.Log.w(TAG, "download fail, retry: $url")
-        }
-        return null
+        return Tile.obtain(TileRasterizer.TILE, TileRasterizer.TILE, bos.toByteArray())
     }
 }

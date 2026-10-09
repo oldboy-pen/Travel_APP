@@ -54,6 +54,20 @@ object MapSdkPrivacy {
                 }
             }
 
+            // ---- osmdroid：WGS84 引擎（天地图等图源）。必须设置 User-Agent，
+            //      否则部分瓦片服务器会拒绝服务（osmdroid 默认 UA 会被识别为异常流量）。
+            //      瓦片缓存路径默认在应用外部私有目录 /osmdroid，随卸载自动清理。 ----
+            runCatching {
+                val cfg = org.osmdroid.config.Configuration.getInstance()
+                if (cfg.userAgentValue.isNullOrBlank()) {
+                    cfg.userAgentValue = appCtx.packageName
+                }
+                cfg.load(
+                    appCtx,
+                    appCtx.getSharedPreferences("osmdroid_prefs", Context.MODE_PRIVATE)
+                )
+            }
+
             initialized = true
         }
     }

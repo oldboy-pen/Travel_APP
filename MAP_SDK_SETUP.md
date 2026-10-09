@@ -111,8 +111,8 @@ keytool -list -v -keystore "C:\Users\<你的用户名>\.android\debug.keystore" 
 
 | 限制 | 原因 | 表现 |
 |---|---|---|
-| **3D 视频导出只能用高德底图** | `TrackVideoExporter` 依赖高德 `TextureMapView` 内部的 TextureView 逐帧抓取 | 腾讯/百度底图下点导出会提示「请先切回高德矢量/卫星」，并自动拦下而不是崩溃 |
-| **第三方瓦片叠加只有高德支持** | 天地图/自定义 XYZ 走 `CustomTileProvider`，只有高德 SDK 暴露 `TileOverlay` 接口 | 选中这类图源会自动用高德引擎渲染，天地图等照常工作；腾讯/百度引擎的 `applyOverlay` 是空实现 |
+| **3D 视频导出只能用高德底图** | `TrackVideoExporter` 依赖高德 `TextureMapView` 内部的 TextureView 逐帧抓取 | 腾讯/百度/osmdroid 底图下点导出会提示「请先切回高德矢量/卫星」，并自动拦下而不是崩溃 |
+| **WGS84 瓦片由 osmdroid 原生渲染** | 天地图/OpenTopoMap/自定义 WGS 图源路由到 osmdroid 引擎（原生 WGS-84 网格），不做逐像素重投影 | 选中这类图源会自动切到 osmdroid 引擎；GCJ02/BD09 图源仍走高德 `CustomTileProvider`；腾讯/百度引擎的 `applyOverlay` 是空实现 |
 | **百度没有 SDK 自带的位置回调** | 百度 SDK 不内置定位客户端 | 百度底图下由 App 用高德定位 SDK 拿点、经 `updateDeviceLocation()` 喂给它；已在 `MapScreen`/`RecordScreen` 处理 |
 | **APK 体积增加** | 三家 SDK 的 so | 已用 `abiFilters` 限制为 `arm64-v8a / armeabi-v7a / x86_64`；出正式包想再省 ~30MB 就把 `x86_64` 删掉（模拟器将装不上，真机不受影响） |
 
@@ -126,20 +126,24 @@ ui/… 三个地图页
            └─ MapEngine（接口）  ← 业务层只认这个 + GeoPoint
                 ├─ AMapEngine        (com.amap.api.maps.TextureMapView)
                 ├─ TencentMapEngine  (com.tencent.tencentmap.mapsdk.maps.TextureMapView)
-                └─ BaiduMapEngine    (com.baidu.mapapi.map.MapView)
+                ├─ BaiduMapEngine    (com.baidu.mapapi.map.MapView)
+                └─ OsmdroidEngine    (org.osmdroid.views.MapView，第四家引擎，WGS84 原生渲染)
 
 MapEnginePool：按「页面 × 厂商」池化，只创建不销毁，Activity ON_DESTROY 才释放
-MapEngineKeys：从 Manifest meta-data 读三家 Key
+MapEngineKeys：从 Manifest meta-data 读三家 Key（osmdroid 开源、无 Key，恒可用）
 
-天地图：不接 SDK。官方瓦片 REST API（t{0-7}.tianditu.gov.cn/DataServer?T=vec_w/img_w/
-ter_w/cva_w/cia_w/cta_w&x&y&l&tk=Key）→ tdt.* 内置图源 → CustomTileProvider 逐像素
-GCJ→WGS 重投影 → 高德引擎 TileOverlay 渲染；Key 存 MapSourceStore.tiandituKey（图源管理面板）。
+天地图 / OpenTopoMap / 自定义 WGS：不接 SDK，由 **osmdroid 引擎原生渲染**。官方瓦片 REST API
+（t{0-7}.tianditu.gov.cn/DataServer?T=vec_w/img_w/ter_w/cva_w/cia_w/cta_w&x&y&l&tk=Key）→ tdt.* /
+opentopomap 等内置图源 → MapSource.engineKind 路由到 OSMDROID → OsmdroidEngine 按标准 XYZ 网格
+直接下载贴图（WGS-84 同坐标系，无需逐像素重投影）；业务层 GCJ-02 坐标在引擎边界用 GeoTransform
+转 WGS-84，轨迹/蓝点与底图天然对齐。Key（tk）存 MapSourceStore.tiandituKey（图源管理面板）。
+GCJ02/BD09 的自定义瓦片图源仍走高德 CustomTileProvider。
 ```
 
 三条使用纪律（写在 `map/MapEngine.kt` 头部注释里）：
 
 1. **业务层不得 import 任何一家地图 SDK 的类** —— 只能用 `MapEngine` + `GeoPoint`
-2. **内部坐标一律 GCJ-02** —— 百度靠 `SDKInitializer.setCoordType(CoordType.GCJ02)` 摆平，业务层免换算
+2. **内部坐标一律 GCJ-02** —— 百度靠 `SDKInitializer.setCoordType(CoordType.GCJ02)` 摆平；osmdroid 原生是 WGS-84，由 `OsmdroidEngine` 在引擎边界用 `GeoTransform` 做 GCJ-02↔WGS-84 点换算（非逐像素重投影）
 3. **`clearOverlays()` 不能清掉底图瓦片层** —— 各家 SDK 的原生 `clear()` 会连瓦片一起清，所以引擎内部自己记账逐个 `remove()`
 
 关键文件：
@@ -150,6 +154,6 @@ GCJ→WGS 重投影 → 高德引擎 TileOverlay 渲染；Key 存 MapSourceStore
 | `map/MapSurface.kt` | Compose 容器，生命周期/Key 保护/回调转发 |
 | `map/MapEnginePool.kt` | 实例池（规避各家 SDK 频繁 destroy 崩溃） |
 | `map/MapEngineKeys.kt` | Key 读取与可用性判断 |
-| `map/AMapEngine.kt` / `TencentMapEngine.kt` / `BaiduMapEngine.kt` | 三家实现 |
+| `map/AMapEngine.kt` / `TencentMapEngine.kt` / `BaiduMapEngine.kt` / `OsmdroidEngine.kt` | 四家实现（osmdroid 为第四家，WGS84 原生渲染） |
 | `utils/MapSdkPrivacy.kt` | 三家合规初始化（隐私同意后才能调） |
 | `mapsources/MapSource.kt` | 图源表，`nativeType` 决定走哪个厂商原生渲染 |

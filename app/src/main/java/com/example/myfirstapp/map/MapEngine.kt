@@ -4,12 +4,15 @@ import android.graphics.Bitmap
 import android.view.View
 import com.example.myfirstapp.mapsources.MapSource
 
-/** 地图厂商（= 用哪家的原生 SDK 渲染）。天地图不在此列：它走 REST 瓦片 API（tdt.* 图源），
- *  由高德引擎 + CustomTileProvider 叠加渲染，不需要任何 SDK */
+/** 地图厂商（= 用哪家的 SDK 渲染）。
+ *  天地图不接官方 SDK：tdt.* 图源是 WGS84 瓦片，由 osmdroid 引擎原生渲染
+ *  （见 MapSource.engineKind 的路由规则），无需逐像素重投影 */
 enum class MapEngineKind(val label: String) {
     AMAP("高德"),
     TENCENT("腾讯"),
-    BAIDU("百度")
+    BAIDU("百度"),
+    /** 开源地图引擎（osmdroid）：WGS84 瓦片图源的原生渲染容器 */
+    OSMDROID("osmdroid")
 }
 
 /** 地图控件的开关（各家控件名字不一样，统一抽出来） */
@@ -20,9 +23,13 @@ data class MapUiSettings(
 )
 
 /**
- * 地图引擎抽象层：屏蔽高德 / 腾讯 / 百度三家 SDK 的 API 差异。
- * （天地图不接 SDK：官方瓦片服务就是 HTTP API，走 tdt.* 图源 + CustomTileProvider，
- *  统一由高德引擎叠加渲染，见 mapsources 包。）
+ * 地图引擎抽象层：屏蔽高德 / 腾讯 / 百度 / osmdroid 四家 SDK/引擎的 API 差异。
+ *
+ * 图源 → 引擎路由（见 MapSource.engineKind）：
+ * - 厂商原生底图（nativeType）→ 对应厂商 SDK（高德/腾讯/百度）；
+ * - WGS84 瓦片图源（天地图/OpenTopoMap/自定义 WGS）→ **osmdroid 引擎原生渲染**
+ *   （osmdroid 原生就是 WGS-84 网格，原样下载贴图，不做逐像素重投影）；
+ * - GCJ02/BD09 瓦片图源 → 高德引擎（CustomTileProvider 叠加，BD09 仍需逐像素重投影）。
  *
  * 使用纪律（很重要，破坏了就失去抽象的意义）：
  * 1. 业务层只能用本接口 + GeoPoint，**不得 import 任何一家地图 SDK 的类**；
@@ -51,11 +58,12 @@ interface MapEngine {
     /**
      * 应用底图。
      * - source.nativeType 属于本引擎 → 切原生地图类型（矢量/卫星/夜景…）
-     * - source 是瓦片图源（天地图 / 自定义 XYZ）→ 只有高德引擎支持叠加，其余引擎忽略
+     * - source 是 WGS84 瓦片图源 → 只有 osmdroid 引擎承接（engineKind 路由保证），原生渲染
+     * - source 是 GCJ02/BD09 瓦片图源 → 只有高德引擎支持叠加，其余引擎忽略
      */
     fun applyBase(source: MapSource)
 
-    /** 应用半透明叠加层（null=无）。瓦片叠加同样只有高德引擎支持 */
+    /** 应用半透明叠加层（null=无）。瓦片叠加只在高德/osmdroid 引擎支持 */
     fun applyOverlay(source: MapSource?)
 
     // ==================== 控件 ====================
