@@ -121,10 +121,12 @@ interface MapEngine {
     fun setLocationChangeListener(listener: ((GeoPoint) -> Unit)?)
 
     /**
-     * 把 App 自己拿到的定位喂给地图蓝点。
+     * 把 App 自己拿到的定位喂给地图蓝点（会覆盖引擎自己的位置）。
      *
-     * 百度 SDK 自身没有取位置的逻辑，必须由业务侧喂 MyLocationData 才会出现蓝点；
-     * 高德/腾讯自带定位客户端，留空实现即可（喂了也不会更准）。
+     * - 百度 SDK 自身没有取位置的逻辑，必须由业务侧喂 MyLocationData 才会出现蓝点；
+     * - 高德/腾讯自带定位客户端，留空实现即可（喂了也不会更准）；
+     * - osmdroid（天地图等 WGS84 图源）自带内置定位源，喂进来则以喂的点为准
+     *   （导航页/记录页这类有更权威位置的场景）。
      */
     fun updateDeviceLocation(point: GeoPoint, accuracyMeters: Float, bearingDeg: Float)
 

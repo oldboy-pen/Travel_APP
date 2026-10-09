@@ -83,7 +83,9 @@ dependencies {
     // 天地图：不引入官方 SDK。瓦片走官方 REST API
     // （https://t{0-7}.tianditu.gov.cn/DataServer?T=vec_w&...&tk=Key），
     // tdt.* 图源是 WGS84 瓦片，由 osmdroid 引擎原生渲染（无重投影）；Key 在图源管理面板填写。
-
+    // （备注）天地图官方 SDK 没有稳定 Maven 坐标，下面这种写法在 Kotlin DSL 里也是语法错误
+    // （单引号 + 依赖不存在），会让整个 Gradle 脚本编译失败。要走官方 SDK 得本地放 aar：
+    // implementation(files("libs/tdmap.aar"))；目前天地图由 osmdroid 原生渲染，不需要。
     // osmdroid：开源地图引擎，WGS84 原生渲染天地图/OpenTopoMap/自定义 WGS 图源
     implementation(libs.osmdroid)
 

@@ -1,12 +1,18 @@
 package com.example.myfirstapp.map
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.drawable.BitmapDrawable
+import android.location.Location
 import android.view.View
+import androidx.core.content.ContextCompat
+import com.amap.api.location.AMapLocationClient
+import com.amap.api.location.AMapLocationClientOption
 import com.example.myfirstapp.mapsources.GeoTransform
 import com.example.myfirstapp.mapsources.MapSource
 import com.example.myfirstapp.mapsources.MapSourceStore
@@ -27,6 +33,9 @@ import org.osmdroid.events.ScrollEvent
 import org.osmdroid.events.ZoomEvent
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Overlay
+import org.osmdroid.views.overlay.mylocation.IMyLocationConsumer
+import org.osmdroid.views.overlay.mylocation.IMyLocationProvider
+import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 import org.osmdroid.views.overlay.Polygon
 import org.osmdroid.views.overlay.Polyline as OsmPolyline
 import org.osmdroid.views.overlay.TilesOverlay
@@ -73,15 +82,37 @@ class OsmdroidEngine(context: Context) : MapEngine {
     private var longClickCb: ((GeoPoint) -> Unit)? = null
     private var gestureCb: (() -> Unit)? = null
 
-    // ---- 蓝点（自绘 Marker + 精度圈 Polygon）----
-    private val deviceMarker: Marker
-    private val accuracyCircle: Polygon
+    // ---- 当前位置（osmdroid 官方 MyLocationNewOverlay + 内置高德定位源）----
+    /**
+     * 内置定位源。osmdroid 自身不带任何定位能力（不像高德/腾讯 SDK 自带定位客户端），
+     * 以前只能等业务层喂点，而运动页这类没有喂点的页面一切到天地图就完全没有"我在哪"。
+     * 这里补一个内置源（高德定位，与 App 其它页面同一套位置来源，室内也能定位），
+     * 由它驱动官方的位置图层 [myLocationOverlay]。
+     */
+    private val locationProvider = AMapLocationProvider(appContext)
+
+    /**
+     * 当前位置图层（osmdroid 官方组件）：负责画定位点与精度圈，位置有两个来源——
+     * 内置定位源（[locationProvider]）或业务层喂进来的点（[updateDeviceLocation]）。
+     * 图标换成与高德蓝点一致的样式（组件默认是个蓝色小人形）。
+     */
+    private val myLocationOverlay: MyLocationNewOverlay = MyLocationNewOverlay(
+        locationProvider, mapView
+    ).apply {
+        setPersonIcon(blueDotBitmap())
+        setPersonAnchor(0.5f, 0.5f)
+        setDirectionIcon(directionArrowBitmap())
+        setDirectionAnchor(0.5f, 0.5f)
+        setDrawAccuracyEnabled(true)
+        setEnableAutoStop(false)   // 跟随的开关完全交给 App（手势退出跟随见 init 里的 MapListener）
+        isEnabled = true
+    }
+
+    /** 业务侧注册的位置回调（用于"首次定位自动回中"）：只有内置定位触发，外部喂点是回声 */
+    private var locationCb: ((GeoPoint) -> Unit)? = null
     private var followOn = false
-    /** 业务侧是否要求显示蓝点（[setMyLocationEnabled] 的开关，与"有没有位置"分开记） */
+    /** 业务侧是否要求显示当前位置（[setMyLocationEnabled] 的开关） */
     private var locationRequested = false
-    private var lastWgs: OsmGeoPoint? = null
-    private var lastAcc = 0f
-    private var lastBearing = 0f
 
     init {
         configure(appContext)
@@ -104,24 +135,22 @@ class OsmdroidEngine(context: Context) : MapEngine {
         )
         // 手势监听（拖动/缩放 → 退出跟随）
         mapView.addMapListener(object : MapListener {
-            override fun onScroll(e: ScrollEvent?): Boolean { gestureCb?.invoke(); return false }
+            override fun onScroll(e: ScrollEvent?): Boolean {
+                // 手动拖图 = 退出跟随（与高德 LOCATION_TYPE_FOLLOW 的行为一致）
+                if (myLocationOverlay.isFollowLocationEnabled) {
+                    myLocationOverlay.disableFollowLocation()
+                    followOn = false
+                }
+                gestureCb?.invoke()
+                return false
+            }
+
             override fun onZoom(e: ZoomEvent?): Boolean { gestureCb?.invoke(); return false }
         })
 
-        // 蓝点 + 精度圈（默认隐藏，开定位后由 updateDeviceLocation / setMyLocationEnabled 控制）
-        deviceMarker = Marker(mapView).apply {
-            setAnchor(0.5f, 0.5f)
-            icon = BitmapDrawable(appContext.resources, blueDotBitmap())
-            isEnabled = false
-        }
-        accuracyCircle = Polygon().apply {
-            fillColor = 0x141E88E5.toInt()
-            strokeColor = 0x661E88E5.toInt()
-            strokeWidth = 2f
-            isEnabled = false
-        }
-        mapView.overlays.add(accuracyCircle)
-        mapView.overlays.add(deviceMarker)
+        // 当前位置图层要压在瓦片叠加层之上（见 restack）：osmdroid 按 overlays 顺序绘制，
+        // 后进的画在上面，而 applyBase/applyOverlay 会往末尾追加瓦片层，所以每次刷新瓦片后重排。
+        mapView.overlays.add(myLocationOverlay)
     }
 
     // ==================== 生命周期 ====================
@@ -130,14 +159,31 @@ class OsmdroidEngine(context: Context) : MapEngine {
     // 清理由 onDetach() 负责。这里只实现接口契约，onCreate 保持空实现。
     override fun onCreate() = Unit
     override fun onStart() = Unit
-    override fun onResume() = mapView.onResume()
-    override fun onPause() = mapView.onPause()
+
+    override fun onResume() {
+        mapView.onResume()
+        // 回到前台：把 onPause 时停掉的定位重新拉起（只在业务层仍要求显示位置时）
+        if (locationRequested && !myLocationOverlay.isMyLocationEnabled) {
+            myLocationOverlay.enableMyLocation()
+            if (followOn) myLocationOverlay.enableFollowLocation()
+        }
+    }
+
+    override fun onPause() {
+        // 进后台就停掉内置定位（省电），MapView 的瓦片加载也一并暂停
+        runCatching { myLocationOverlay.disableMyLocation() }
+        mapView.onPause()
+    }
+
     override fun onStop() = Unit
 
     override fun onDestroy() {
         clearOverlays()
         removeLayers(baseLayers)
         removeLayers(overlayLayers)
+        runCatching { myLocationOverlay.disableMyLocation() }
+        runCatching { myLocationOverlay.onDetach(mapView) }
+        runCatching { locationProvider.destroy() }
         // 6.1.20 无 onDestroy()，用 onDetach() 释放瓦片提供器与监听线程（避免线程泄漏）
         runCatching { mapView.onDetach() }
     }
@@ -198,10 +244,9 @@ class OsmdroidEngine(context: Context) : MapEngine {
         overlayLayers.forEach { tiles.add(it.overlay) }
         if (tiles.isEmpty()) return
 
-        // 业务覆盖物 = 精度圈 + 蓝点 + 业务层画过的痕迹（轨迹线/标记/精度圆）
-        val business = ArrayList<Overlay>(appOverlays.size + 2)
-        business.add(accuracyCircle)
-        business.add(deviceMarker)
+        // 业务覆盖物 = 当前位置图层 + 业务层画过的痕迹（轨迹线/标记/精度圆）
+        val business = ArrayList<Overlay>(appOverlays.size + 1)
+        business.add(myLocationOverlay)
         appOverlays.forEach { if (it is Overlay) business.add(it) }
 
         // 顺序已经正确（最上面那层瓦片仍压在业务层之下）就不动列表，省掉一次重绘
@@ -380,54 +425,130 @@ class OsmdroidEngine(context: Context) : MapEngine {
         mapView.invalidate()
     }
 
-    // ==================== 定位蓝点 ====================
+    // ==================== 当前位置（定位蓝点） ====================
 
     /**
-     * 开关自绘蓝点。osmdroid 没有内置定位客户端，必须由业务侧 [updateDeviceLocation] 喂位置
-     * （与百度引擎同理；高德/腾讯自带定位，留空实现）。
+     * 开关当前位置图层。与高德/腾讯一样由引擎自己取位置（内置的高德定位源），
+     * 业务层不喂点也能看到"我在哪"；喂点（[updateDeviceLocation]）时以喂进来的为准。
      */
     override fun setMyLocationEnabled(enabled: Boolean, follow: Boolean) {
         locationRequested = enabled
         followOn = follow
-        syncBlueDot()
-    }
-
-    /**
-     * 按当前状态刷新蓝点/精度圈。
-     *
-     * ★ 位置（lastWgs）还没到位时绝不把 Marker 打开：osmdroid 的 Marker 在 position 为 null
-     *   时 `pj.toPixels(mPosition,…)` 直接 NPE，异常会从 onDraw 抛出去，连累整幅地图不再刷新
-     *   （表现就是"地图白/灰，定位点也不出现"）。所以先攒位置、后显示。
-     */
-    private fun syncBlueDot() {
-        val w = lastWgs
-        val show = locationRequested && w != null
-        deviceMarker.isEnabled = show
-        accuracyCircle.isEnabled = show
-        if (show && w != null) {
-            deviceMarker.position = w
-            deviceMarker.rotation = lastBearing
-            accuracyCircle.points = circlePoints(w.latitude, w.longitude, lastAcc.toDouble())
+        if (!enabled) {
+            // 停掉内置定位，且 MyLocationNewOverlay 的 draw 依赖 isMyLocationEnabled，这里一并关掉
+            myLocationOverlay.disableMyLocation()
+            mapView.invalidate()
+            return
         }
-        // 位置变了必须主动重绘：osmdroid 的 Marker/Polygon 自身不会触发 invalidate，
-        // 镜头不动时（follow=false 或镜头已到位）蓝点会一直停在上一次的画面里。
+        if (!myLocationOverlay.isMyLocationEnabled) myLocationOverlay.enableMyLocation()
+        if (follow) myLocationOverlay.enableFollowLocation()
+        else myLocationOverlay.disableFollowLocation()
         mapView.invalidate()
     }
 
-    /** 百度式空实现：osmdroid 没有 SDK 自己产出的定位回调，位置由上游 updateDeviceLocation 流入 */
-    override fun setLocationChangeListener(listener: ((GeoPoint) -> Unit)?) = Unit
+    /** 内置定位拿到位置时的回调（用于"首次定位自动回中"），与高德的 setOnMyLocationChangeListener 对齐 */
+    override fun setLocationChangeListener(listener: ((GeoPoint) -> Unit)?) {
+        locationCb = listener
+    }
 
     /**
-     * 喂位置给自绘蓝点。point 为 GCJ-02，边界处转 WGS-84 后定位；follow=true 时镜头跟随居中。
+     * 业务侧喂位置（比内置定位更权威时用，例如导航页的导航定位、地图页的搜索定位）。
+     *
+     * 走的是同一张 [myLocationOverlay]，只是把位置直接灌进去，不再另开一套自绘 Marker，
+     * 避免两个图层同时画两个蓝点。point 为 GCJ-02，边界处转 WGS-84。
      */
     override fun updateDeviceLocation(point: GeoPoint, accuracyMeters: Float, bearingDeg: Float) {
-        val w = toWgs(point)
-        lastWgs = w
-        lastAcc = accuracyMeters
-        lastBearing = bearingDeg
-        // 先落位置再画蓝点：position 为空时 Marker 绘制会 NPE（见 syncBlueDot 注释）
-        syncBlueDot()
-        if (followOn) controller.animateTo(w)
+        if (!locationRequested) return   // 业务层明确关掉了定位（如记录中）就不画
+        val loc = wgsLocation(point.latitude, point.longitude, accuracyMeters, bearingDeg)
+        // 灌进同一张位置图层（source 参数组件内部没用到，传内置源只为满足非空签名）
+        myLocationOverlay.onLocationChanged(loc, locationProvider)
+    }
+
+    /** GCJ-02 → WGS-84 → android.location.Location（osmdroid 图层只认 WGS-84） */
+    private fun wgsLocation(lat: Double, lng: Double, accuracy: Float, bearing: Float): Location {
+        val w = GeoTransform.gcj02ToWgs84(lng, lat) // 返回 [lng, lat]
+        return Location(LOCATION_PROVIDER_APP).apply {
+            latitude = w[1]
+            longitude = w[0]
+            if (accuracy > 0f) this.accuracy = accuracy
+            // 有航向才设 bearing：MyLocationNewOverlay 在 hasBearing() 时会画方向箭头而不是圆点
+            if (bearing > 0f) this.bearing = bearing
+            time = System.currentTimeMillis()
+        }
+    }
+
+    private fun hasLocationPermission(): Boolean =
+        ContextCompat.checkSelfPermission(
+            appContext, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(
+                appContext, Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+
+    /**
+     * 内置定位源：把高德定位包装成 osmdroid 的 [IMyLocationProvider]。
+     *
+     * ★ 为什么用高德而不是系统 GPS/网络定位：App 其它页面（地图页 ViewModel、轨迹记录、
+     *   导航）都走高德定位，位置来源一致，切图源时蓝点不会跳；而且高德是混合定位，
+     *   室内/城市峡谷也有位置，系统 NETWORK_PROVIDER 在国内基本拿不到。
+     *
+     * ★ [startLocationProvider] 恒返回 true：即使没有定位权限/定位失败，overlay 也处于
+     *   enabled 状态，业务层后续喂进来的位置照样能画出来（官方组件 draw 的前提就是
+     *   isMyLocationEnabled()，返回 false 会让整张位置图层彻底不画）。
+     */
+    private inner class AMapLocationProvider(private val ctx: Context) : IMyLocationProvider {
+
+        private var consumer: IMyLocationConsumer? = null
+        private var client: AMapLocationClient? = null
+        private var lastLocation: Location? = null
+
+        override fun startLocationProvider(myLocationConsumer: IMyLocationConsumer): Boolean {
+            consumer = myLocationConsumer
+            startClient()
+            return true
+        }
+
+        override fun stopLocationProvider() = stopClient()
+
+        override fun getLastKnownLocation(): Location? = lastLocation
+
+        override fun destroy() {
+            stopClient()
+            consumer = null
+        }
+
+        private fun startClient() {
+            if (client != null || !hasLocationPermission()) return
+            runCatching {
+                client = AMapLocationClient(ctx).apply {
+                    setLocationOption(AMapLocationClientOption().apply {
+                        locationMode = AMapLocationClientOption.AMapLocationMode.Hight_Accuracy
+                        isOnceLocation = false      // 持续定位
+                        interval = 2000             // 2 秒一次（与高德蓝点 3s 量级一致）
+                        isNeedAddress = false       // 只要坐标，省流量
+                    })
+                    setLocationListener { loc ->
+                        if (loc.errorCode != 0) return@setLocationListener
+                        val l = wgsLocation(loc.latitude, loc.longitude, loc.accuracy, loc.bearing)
+                        lastLocation = l
+                        consumer?.onLocationChanged(l, this@AMapLocationProvider)
+                        // 内置定位也要把位置抛给业务层（首次定位回中等），与高德引擎的行为对齐
+                        locationCb?.invoke(GeoPoint(loc.latitude, loc.longitude))
+                    }
+                    startLocation()
+                }
+            }
+        }
+
+        private fun stopClient() {
+            client?.let { c ->
+                runCatching {
+                    c.stopLocation()
+                    c.onDestroy()
+                }
+            }
+            client = null
+        }
     }
 
     // ==================== 交互 ====================
@@ -470,7 +591,10 @@ class OsmdroidEngine(context: Context) : MapEngine {
         return pts
     }
 
-    /** 自绘蓝色定位点（实心蓝圆 + 白环） */
+    /**
+     * 自绘蓝色定位点（实心蓝圆 + 白环）：作为 MyLocationNewOverlay 的 person 图标，
+     * 没有航向（静止/刚定位）时画它，观感与高德的蓝点一致。
+     */
     private fun blueDotBitmap(): Bitmap {
         val density = appContext.resources.displayMetrics.density
         val size = (24 * density).toInt().coerceAtLeast(1)
@@ -485,6 +609,37 @@ class OsmdroidEngine(context: Context) : MapEngine {
             style = Paint.Style.FILL; color = 0xFF1E88E5.toInt()
         }
         canvas.drawCircle(r, r, r * 0.62f, blue)
+        return bmp
+    }
+
+    /**
+     * 自绘方向箭头（尖头朝正上 = 正北）：作为 MyLocationNewOverlay 的 direction 图标，
+     * 有航向（移动中）时画它，并按 bearing 旋转 —— 官方组件的锚点固定用中心，
+     * 所以箭头画成正方形、尖端贴顶边，旋转后就是从中心指向行进方向。
+     */
+    private fun directionArrowBitmap(): Bitmap {
+        val density = appContext.resources.displayMetrics.density
+        val size = (30 * density).toInt().coerceAtLeast(4)
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val cx = size / 2f
+        val path = android.graphics.Path().apply {
+            moveTo(cx, size * 0.06f)          // 尖端（正北）
+            lineTo(size * 0.86f, size * 0.88f)
+            lineTo(cx, size * 0.66f)          // 底部内凹
+            lineTo(size * 0.14f, size * 0.88f)
+            close()
+        }
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        paint.style = Paint.Style.FILL
+        paint.color = 0xFF1E88E5.toInt()
+        canvas.drawPath(path, paint)
+        // 白描边：在深色底图（卫星/地形）上也能看清
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 2f * density
+        paint.strokeJoin = Paint.Join.ROUND
+        paint.color = 0xFFFFFFFF.toInt()
+        canvas.drawPath(path, paint)
         return bmp
     }
 
@@ -523,6 +678,9 @@ class OsmdroidEngine(context: Context) : MapEngine {
     }
 
     companion object {
+        /** 自造的 Location provider 名（仅用于标记位置来源，不对应真实 provider） */
+        private const val LOCATION_PROVIDER_APP = "app"
+
         @Volatile
         private var configured = false
 

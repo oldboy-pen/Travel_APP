@@ -129,7 +129,9 @@ fun MapScreen(viewModel: MapViewModel = viewModel(), onNavigate: (String) -> Uni
 
     Box(modifier = Modifier.fillMaxSize()) {
         // ---- 地图就绪后：开蓝点（跟随模式） ----
-        LaunchedEffect(mapState.engine) {
+        // key 带上权限：首次进入是先弹权限框再拿定位，引擎可能在拿到权限前就开了定位开关
+        // （osmdroid 引擎没有权限就起不来内置定位），权限到位后要重新开一次。
+        LaunchedEffect(mapState.engine, hasLocationPermission) {
             mapState.engine?.setMyLocationEnabled(true, follow = true)
         }
 
