@@ -38,6 +38,7 @@ import com.example.myfirstapp.ui.screens.LoginScreen
 import com.example.myfirstapp.ui.screens.CoordinateConverterScreen
 import com.example.myfirstapp.ui.screens.FootprintActivitiesScreen
 import com.example.myfirstapp.ui.screens.FootprintPhotosScreen
+import com.example.myfirstapp.globe.GlobeScreen
 import com.example.myfirstapp.ui.screens.FootprintTracksScreen
 import com.example.myfirstapp.ui.screens.MapScreen
 import com.example.myfirstapp.ui.screens.PaceConverterScreen
@@ -106,7 +107,8 @@ fun AppRoot() {
             composable("record") {
                 RecordScreen(
                     onTrackSaved = { id -> navController.navigateToTrackDetail(id) },
-                    onNavigate = { id -> navController.navigate("nav/$id") }
+                    onNavigate = { id -> navController.navigate("nav/$id") },
+                    onOpenGlobe = { navController.navigate("globe") }
                 )
             }
             composable("history") {
@@ -139,6 +141,10 @@ fun AppRoot() {
                     onBack = { navController.popBackStack() },
                     onOpenTrackSource = { id -> navController.navigate("trackView/$id") }
                 )
+            }
+            // 工具：3D 地球（OpenGL 自绘球面 + 瓦片地形，入口在运动页左侧按钮）
+            composable("globe") {
+                GlobeScreen(onBack = { navController.popBackStack() })
             }
             // ---- 「我的 → 工具」三个小工具（全屏页） ----
             composable("todo") {

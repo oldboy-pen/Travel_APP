@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Visibility
@@ -57,12 +58,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.myfirstapp.globe.GlobeLine
+import com.example.myfirstapp.globe.LonLat
+import com.example.myfirstapp.globe.PendingGlobeData
 import com.example.myfirstapp.map.GeoPoint
 import com.example.myfirstapp.map.MapEngine
 import com.example.myfirstapp.map.MapSurface
 import com.example.myfirstapp.map.MapSurfaceState
 import com.example.myfirstapp.map.MapUiSettings
 import com.example.myfirstapp.map.rememberMapSurfaceState
+import com.example.myfirstapp.mapsources.GeoTransform
 import com.example.myfirstapp.mapsources.MapSourceStore
 import com.example.myfirstapp.track.GeoUtils
 import com.example.myfirstapp.track.RecorderState
@@ -86,7 +91,14 @@ import com.example.myfirstapp.track.TrackSourceResolver
 @Composable
 fun RecordScreen(
     onTrackSaved: (String) -> Unit,
-    onNavigate: (String) -> Unit
+    /** 沿轨迹导航：参数是轨迹 id（路由层会拼成 nav/{id}） */
+    onNavigate: (String) -> Unit,
+    /**
+     * 打开 3D 地球页。
+     * ★ 必须单独成一个回调、不能用 onNavigate("globe")：运动页的 onNavigate 在路由层被
+     *   固定拼成 `nav/{id}`，传非轨迹 id 会被当成轨迹 id 去 load（必然 null → 弹"轨迹不存在"）。
+     */
+    onOpenGlobe: () -> Unit
 ) {
     val context = LocalContext.current
     val data by TrackRecorder.data.collectAsStateWithLifecycle()
@@ -168,6 +180,46 @@ fun RecordScreen(
         } else {
             Toast.makeText(context, "请先结束当前记录，再进行轨迹导航", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    /**
+     * 打开 3D 地球：把「已加载的参考轨迹 + 当前正在记录/暂停的轨迹 + 当前位置」
+     * 一次性交给 globe 页。
+     *
+     * App 内部坐标统一是 GCJ-02，而球面贴图是 WGS-84 瓦片，所以在这里做一次转换
+     * （和 osmdroid 引擎边界的处理口径一致）。
+     */
+    fun openGlobe() {
+        val lines = ArrayList<GlobeLine>()
+        loadedTracks.forEach { t ->
+            if (t.points.size >= 2) {
+                lines.add(
+                    GlobeLine(
+                        points = t.points.map { toGlobeLatLon(it.latitude, it.longitude) },
+                        colorArgb = TrackColorStore.overlayColorOf(t.id),
+                        widthPx = 2.5f
+                    )
+                )
+            }
+        }
+        if (data.points.size >= 2) {
+            lines.add(
+                GlobeLine(
+                    points = data.points.map { toGlobeLatLon(it.latitude, it.longitude) },
+                    colorArgb = TrackColorStore.liveColor.value,
+                    widthPx = 3.5f
+                )
+            )
+        }
+        val lat = data.lastLatitude
+        val lng = data.lastLongitude
+        val marker = if (lat != null && lng != null) {
+            toGlobeLatLon(lat, lng)
+        } else {
+            data.points.lastOrNull()?.let { toGlobeLatLon(it.latitude, it.longitude) }
+        }
+        PendingGlobeData.set(lines, marker)
+        onOpenGlobe()
     }
 
     // 底部控制面板：进入运动页时默认折叠到屏幕边缘，点按抓手展开
@@ -368,6 +420,7 @@ fun RecordScreen(
             locationPermissionGranted = permissionsGranted,
             onOpenNavigation = { openNavigationPicker() },
             onOpenTrackLoad = { showTrackLoadSheet = true },
+            onOpenGlobe = { openGlobe() },
             onFocus = { track -> focusTrack(track) },
             onRemove = { track -> toggleLoaded(track) },
             onClearOverlay = { loadedTracks = emptyList(); focusTrackId = null },
@@ -902,6 +955,15 @@ private fun NavigationTrackPickerDialog(
     )
 }
 
+/**
+ * GCJ-02 → WGS-84，再包成球面坐标（经度在前）。
+ * App 内部坐标统一 GCJ-02，3D 地球贴的是 WGS-84 瓦片，出口/入口转一手。
+ */
+private fun toGlobeLatLon(lat: Double, lng: Double): LonLat {
+    val w = GeoTransform.gcj02ToWgs84(lng, lat)
+    return LonLat(lon = w[0], lat = w[1])
+}
+
 /** 结束记录：轨迹太少提示，正常则保存并跳详情 */
 private fun finishRecording(context: Context, onTrackSaved: (String) -> Unit) {
     val track = TrackRecorder.stop()
@@ -933,6 +995,8 @@ private fun TrackingMapView(
     locationPermissionGranted: Boolean,
     onOpenNavigation: () -> Unit,
     onOpenTrackLoad: () -> Unit,
+    /** 打开 3D 地球（globe 页）：带上当前的所有轨迹数据去看全球地形 */
+    onOpenGlobe: () -> Unit,
     onFocus: (Track) -> Unit,
     onRemove: (Track) -> Unit,
     onClearOverlay: () -> Unit,
@@ -1155,6 +1219,21 @@ private fun TrackingMapView(
                     Icons.Default.Route,
                     contentDescription = "加载轨迹",
                     tint = if (overlayTracks.isEmpty()) Color(0xFF2E7D32) else Color.White
+                )
+            }
+
+            // ---- 3D 地球入口：左侧一列第五个（全球地形，可旋转缩放）----
+            SmallFloatingActionButton(
+                onClick = onOpenGlobe,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 12.dp, top = 232.dp), // 加载轨迹按钮（top184+40）下方留 8dp
+                containerColor = Color.White
+            ) {
+                Icon(
+                    Icons.Default.Public,
+                    contentDescription = "3D 地球",
+                    tint = Color(0xFF2E7D32)
                 )
             }
 

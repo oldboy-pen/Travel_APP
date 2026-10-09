@@ -118,6 +118,15 @@ class OsmdroidEngine(context: Context) : MapEngine {
     private var locationRequested = false
     /** 最近一次有效航向：定位暂时给不出 bearing 时沿用，避免箭头一下子弹回正北 */
     private var lastBearing = 0f
+    /**
+     * 引擎是否已销毁。★ 关键：官方 `MyLocationNewOverlay.onDetach()` 会把内部的
+     * locationProvider 置成 **null**，之后再调无参的 `enableMyLocation()` 会直接抛
+     * `RuntimeException: You must pass an IMyLocationProvider to setMyLocationProvider()`
+     * （onResume 里被 Compose 生命周期触发 → 整进程闪退）。所以：
+     * ① 开定位一律用带参版本 enableMyLocation(locationProvider)（能自愈）；
+     * ② 销毁后所有生命周期/定位回调直接 return。
+     */
+    private var destroyed = false
 
     init {
         configure(appContext)
@@ -166,15 +175,17 @@ class OsmdroidEngine(context: Context) : MapEngine {
     override fun onStart() = Unit
 
     override fun onResume() {
+        if (destroyed) return   // 已经 onDestroy 过（onDetach 后定位源被置空），不再响应任何回调
         mapView.onResume()
         // 回到前台：把 onPause 时停掉的定位重新拉起（只在业务层仍要求显示位置时）
         if (locationRequested && !myLocationOverlay.isMyLocationEnabled) {
-            myLocationOverlay.enableMyLocation()
-            if (followOn) myLocationOverlay.enableFollowLocation()
+            runCatching { myLocationOverlay.enableMyLocation(locationProvider) }
+            if (followOn) runCatching { myLocationOverlay.enableFollowLocation() }
         }
     }
 
     override fun onPause() {
+        if (destroyed) return
         // 进后台就停掉内置定位（省电），MapView 的瓦片加载也一并暂停
         runCatching { myLocationOverlay.disableMyLocation() }
         mapView.onPause()
@@ -183,6 +194,7 @@ class OsmdroidEngine(context: Context) : MapEngine {
     override fun onStop() = Unit
 
     override fun onDestroy() {
+        destroyed = true
         clearOverlays()
         removeLayers(baseLayers)
         removeLayers(overlayLayers)
@@ -437,17 +449,23 @@ class OsmdroidEngine(context: Context) : MapEngine {
      * 业务层不喂点也能看到"我在哪"；喂点（[updateDeviceLocation]）时以喂进来的为准。
      */
     override fun setMyLocationEnabled(enabled: Boolean, follow: Boolean) {
+        if (destroyed) return
         locationRequested = enabled
         followOn = follow
         if (!enabled) {
             // 停掉内置定位，且 MyLocationNewOverlay 的 draw 依赖 isMyLocationEnabled，这里一并关掉
-            myLocationOverlay.disableMyLocation()
+            runCatching { myLocationOverlay.disableMyLocation() }
             mapView.invalidate()
             return
         }
-        if (!myLocationOverlay.isMyLocationEnabled) myLocationOverlay.enableMyLocation()
-        if (follow) myLocationOverlay.enableFollowLocation()
-        else myLocationOverlay.disableFollowLocation()
+        // ★ 显式把内置源传进去：无参版本会用 overlay 内部那个可能被置空的字段，会抛异常
+        if (!myLocationOverlay.isMyLocationEnabled) {
+            runCatching { myLocationOverlay.enableMyLocation(locationProvider) }
+        }
+        runCatching {
+            if (follow) myLocationOverlay.enableFollowLocation()
+            else myLocationOverlay.disableFollowLocation()
+        }
         mapView.invalidate()
     }
 
@@ -463,6 +481,7 @@ class OsmdroidEngine(context: Context) : MapEngine {
      * 避免两个图层同时画两个蓝点。point 为 GCJ-02，边界处转 WGS-84。
      */
     override fun updateDeviceLocation(point: GeoPoint, accuracyMeters: Float, bearingDeg: Float) {
+        if (destroyed) return
         if (!locationRequested) return   // 业务层明确关掉了定位（如记录中）就不画
         val loc = wgsLocation(point.latitude, point.longitude, accuracyMeters, bearingDeg)
         // 灌进同一张位置图层（source 参数组件内部没用到，传内置源只为满足非空签名）

@@ -28,7 +28,11 @@ object MapEnginePool {
     /** 惰性创建 + onCreate（幂等） */
     fun get(pageKey: String, kind: MapEngineKind, context: Context): MapEngine {
         val k = keyOf(pageKey, kind)
-        val e = pool.getOrPut(k) { Entry(createEngine(kind, context.applicationContext)) }
+        // 已经销毁过的实例绝不再交出去（销毁后内部资源已被置空，复用会直接崩）
+        val old = pool[k]
+        val e = if (old != null && !old.destroyed) old else {
+            Entry(createEngine(kind, context.applicationContext)).also { pool[k] = it }
+        }
         if (!e.created && !e.destroyed) {
             e.engine.onCreate()
             e.created = true
