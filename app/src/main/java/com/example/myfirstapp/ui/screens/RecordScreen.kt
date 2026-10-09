@@ -365,6 +365,7 @@ fun RecordScreen(
             bottomPanelCollapsed = bottomPanelCollapsed,
             overlayTracks = loadedTracks,
             focusTrackId = focusTrackId,
+            locationPermissionGranted = permissionsGranted,
             onOpenNavigation = { openNavigationPicker() },
             onOpenTrackLoad = { showTrackLoadSheet = true },
             onFocus = { track -> focusTrack(track) },
@@ -927,6 +928,9 @@ private fun TrackingMapView(
     bottomPanelCollapsed: Boolean,
     overlayTracks: List<Track>,
     focusTrackId: String?,
+    /** 定位权限是否已授予：osmdroid 引擎（天地图等）没权限就起不来内置定位，
+     *  权限到位后要重新开一次蓝点开关，因此作为开关的 key 传进来 */
+    locationPermissionGranted: Boolean,
     onOpenNavigation: () -> Unit,
     onOpenTrackLoad: () -> Unit,
     onFocus: (Track) -> Unit,
@@ -1256,7 +1260,7 @@ private fun TrackingMapView(
     // ---- 蓝点来源切换：记录中=自绘（GPS 优先的过滤定位），其余=SDK 蓝点做位置预览 ----
     // key 带上权限：本页是先进页面再弹权限框，osmdroid 引擎（天地图等）没权限就起不来
     // 内置定位，权限到位后要重新开一次蓝点开关。
-    LaunchedEffect(mapState.engine, data.state, permissionsGranted) {
+    LaunchedEffect(mapState.engine, data.state, locationPermissionGranted) {
         val engine = mapState.engine ?: return@LaunchedEffect
         if (data.state == RecorderState.RECORDING) {
             // 关掉 SDK 蓝点：其内置定位客户端不可配置，GPS 弱时偏 20~50 米
