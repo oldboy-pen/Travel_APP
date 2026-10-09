@@ -80,6 +80,10 @@ dependencies {
     // 百度地图（原生引擎，map.BaiduMapEngine 用；会传递依赖 com.baidu.lbsyun:base）
     implementation(libs.baidu.map.sdk)
 
+    // 天地图：不引入任何 SDK/依赖。官方瓦片服务就是 REST API
+    // （https://t{0-7}.tianditu.gov.cn/DataServer?T=vec_w&...&tk=Key），
+    // 由 tdt.* 内置图源 + CustomTileProvider 在高德引擎上叠加渲染，Key 在图源管理面板填写。
+
     // 二维码：扫码添加图源（embedded 内置 CaptureActivity）+ 生成分享二维码
     implementation(libs.zxing.embedded)
     implementation(libs.zxing.core)

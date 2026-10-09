@@ -4,7 +4,8 @@ import android.graphics.Bitmap
 import android.view.View
 import com.example.myfirstapp.mapsources.MapSource
 
-/** 地图厂商（= 用哪家的原生 SDK 渲染） */
+/** 地图厂商（= 用哪家的原生 SDK 渲染）。天地图不在此列：它走 REST 瓦片 API（tdt.* 图源），
+ *  由高德引擎 + CustomTileProvider 叠加渲染，不需要任何 SDK */
 enum class MapEngineKind(val label: String) {
     AMAP("高德"),
     TENCENT("腾讯"),
@@ -20,6 +21,8 @@ data class MapUiSettings(
 
 /**
  * 地图引擎抽象层：屏蔽高德 / 腾讯 / 百度三家 SDK 的 API 差异。
+ * （天地图不接 SDK：官方瓦片服务就是 HTTP API，走 tdt.* 图源 + CustomTileProvider，
+ *  统一由高德引擎叠加渲染，见 mapsources 包。）
  *
  * 使用纪律（很重要，破坏了就失去抽象的意义）：
  * 1. 业务层只能用本接口 + GeoPoint，**不得 import 任何一家地图 SDK 的类**；

@@ -13,6 +13,9 @@ import android.content.pm.PackageManager
  * - 高德：com.amap.api.v2.apikey
  * - 腾讯："TencentMapSDK"（com.tencent.map.tools.Util.META_NAME_API_KEY）
  * - 百度：com.baidu.lbsapi.API_KEY
+ *
+ * 天地图没有 SDK、也就不在此列：它的 Key（tk）用于瓦片 REST API，
+ * 存在图源管理面板（MapSourceStore.tiandituKey），由 CustomTileProvider 拼进瓦片 URL。
  */
 object MapEngineKeys {
 
@@ -37,7 +40,9 @@ object MapEngineKeys {
         MapEngineKind.BAIDU -> META_BAIDU
     }
 
-    /** 读取到的原始 Key（未配置则返回空串） */
+    /**
+     * 读取到的原始 Key（未配置则返回空串）。
+     */
     fun rawOf(kind: MapEngineKind): String {
         val ctx = appContext ?: return ""
         val appInfo = runCatching {

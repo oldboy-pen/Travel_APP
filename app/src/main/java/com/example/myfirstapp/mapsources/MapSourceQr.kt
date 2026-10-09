@@ -19,13 +19,14 @@ object MapSourceQr {
         .put("maxZoom", s.maxZoom)
         .put("subdomains", s.subdomains)
         .put("overlay", s.isOverlay)
+        .put("layers", org.json.JSONArray().apply { s.layers.forEach { put(it) } })
         .toString()
 
     /**
      * 条码（Code128）载荷：只带 URL，长度短、条带粗、易扫。
-     * 扫码端按「URL|xxx」识别，其余字段走默认值（对话框里可改）。
+     * 复合图层取首个子层 URL；扫码端按「URL|xxx」识别，其余字段走默认值（对话框里可改）。
      */
-    fun toBarcodePayload(s: MapSource): String = "URL|${s.urlTemplate}"
+    fun toBarcodePayload(s: MapSource): String = "URL|${s.layers.firstOrNull() ?: s.urlTemplate}"
 
     /**
      * 解析扫码内容。
@@ -85,6 +86,11 @@ object MapSourceQr {
                     "BD09", "BD-09", "BD" -> TileCrs.BD09
                     else -> TileCrs.GCJ02
                 }
+                val layers = runCatching {
+                    val arr = o.optJSONArray("layers")
+                    if (arr == null) emptyList() else
+                        (0 until arr.length()).map { arr.getString(it) }
+                }.getOrDefault(emptyList())
                 return MapSource(
                     id = "",
                     name = o.optString("name", "扫码图源").ifBlank { "扫码图源" },
@@ -93,7 +99,8 @@ object MapSourceQr {
                     crs = crs,
                     minZoom = o.optInt("minZoom", 3).coerceIn(1, 22),
                     maxZoom = o.optInt("maxZoom", 18).coerceIn(1, 22),
-                    isOverlay = o.optBoolean("overlay", false)
+                    isOverlay = o.optBoolean("overlay", false),
+                    layers = layers
                 )
             }
         }

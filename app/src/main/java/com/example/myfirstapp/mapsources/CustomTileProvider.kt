@@ -53,9 +53,14 @@ class CustomTileProvider(
     override fun getTile(x: Int, y: Int, zoom: Int): Tile? {
         if (zoom < source.minZoom || zoom > source.maxZoom) return TileProvider.NO_TILE
         return try {
-            when (source.crs) {
-                TileCrs.GCJ02 -> fetchDirect(x, y, zoom)
-                TileCrs.WGS84, TileCrs.BD09 -> reprojected(x, y, zoom)
+            if (source.layers.isNotEmpty()) {
+                // 复合图层（如天地图「晕渲+等高线」）：逐层取像素后 alpha 合成一张瓦片
+                compositeTile(x, y, zoom)
+            } else {
+                when (source.crs) {
+                    TileCrs.GCJ02 -> fetchDirect(x, y, zoom)
+                    TileCrs.WGS84, TileCrs.BD09 -> reprojected(x, y, zoom)
+                }
             }
         } catch (t: Throwable) {
             // 失败打日志便于真机排查（图源空白时过滤 "TileProvider" 即可看到具体原因）
@@ -78,7 +83,8 @@ class CustomTileProvider(
 
     // ==================== WGS84 / BD09：逐像素重投影 ====================
 
-    private fun reprojected(x: Int, y: Int, zoom: Int): Tile? {
+    /** 单图层重投影，返回 256×256 ARGB 像素数组（不编码）。复合图层据此逐层生成再合成 */
+    private fun reprojectedPixels(template: String, x: Int, y: Int, zoom: Int): IntArray {
         // 1. 17×17 网格点精确换算：目标瓦片像素 → 源瓦片全球像素
         val gx = DoubleArray(N_GRID * N_GRID)
         val gy = DoubleArray(N_GRID * N_GRID)
@@ -105,13 +111,69 @@ class CustomTileProvider(
                         gx[s00 + N_GRID] * (1 - iw) * jw + gx[s00 + N_GRID + 1] * iw * jw
                 val fy = gy[s00] * (1 - iw) * (1 - jw) + gy[s00 + 1] * iw * (1 - jw) +
                         gy[s00 + N_GRID] * (1 - iw) * jw + gy[s00 + N_GRID + 1] * iw * jw
-                dest[py * TILE + px] = sampleSourcePixel(fx, fy, zoom)
+                dest[py * TILE + px] = sampleSourcePixel(template, fx, fy, zoom)
             }
         }
+        return dest
+    }
 
-        // 3. 编码为 PNG 瓦片
+    /** 单图层重投影并编码为 PNG 瓦片 */
+    private fun reprojected(x: Int, y: Int, zoom: Int): Tile? {
+        val pixels = reprojectedPixels(source.urlTemplate, x, y, zoom)
+        return encode(pixels)
+    }
+
+    /**
+     * 复合图层：按顺序合成 source.layers 中每个 XYZ 模板的瓦片像素（index 0 在底，逐层向上叠加）。
+     * 每层各自走 GCJ-02 重投影（WGS84/BD09）或直接下载（GCJ02），再 alpha 合成。
+     */
+    private fun compositeTile(x: Int, y: Int, zoom: Int): Tile? {
+        var acc: IntArray? = null
+        for (tpl in source.layers) {
+            val layer = if (source.crs == TileCrs.GCJ02) {
+                fetchDirectPixels(tpl, x, y, zoom)
+            } else {
+                reprojectedPixels(tpl, x, y, zoom)
+            } ?: continue
+            if (acc == null) acc = layer else blend(acc, layer)
+        }
+        val finalPixels = acc ?: return TileProvider.NO_TILE
+        return encode(finalPixels)
+    }
+
+    /** 直接下载单个图层瓦片并解出像素（GCJ02 复合图层用） */
+    private fun fetchDirectPixels(template: String, x: Int, y: Int, zoom: Int): IntArray? {
+        val url = renderUrlWithCoords(template, x.toString(), y.toString(), zoom, x, y)
+        val bytes = download(url) ?: return null
+        val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
+        val pixels = IntArray(TILE * TILE)
+        bmp.getPixels(pixels, 0, TILE, 0, 0, TILE, TILE)
+        bmp.recycle()
+        return pixels
+    }
+
+    /** 把 src 以标准 source-over 方式合成到 dst 上（dst 被原地修改） */
+    private fun blend(dst: IntArray, src: IntArray) {
+        for (i in dst.indices) {
+            val sa = (src[i] shr 24) and 0xFF
+            if (sa == 0) continue
+            if (sa == 255) { dst[i] = src[i]; continue }
+            val da = (dst[i] shr 24) and 0xFF
+            val sr = src[i] and 0xFF; val sg = (src[i] shr 8) and 0xFF; val sb = (src[i] shr 16) and 0xFF
+            val dr = dst[i] and 0xFF; val dg = (dst[i] shr 8) and 0xFF; val db = (dst[i] shr 16) and 0xFF
+            val na = sa + da * (255 - sa) / 255
+            if (na == 0) { dst[i] = 0; continue }
+            val nr = (sr * sa + dr * da * (255 - sa) / 255) / na
+            val ng = (sg * sa + dg * da * (255 - sa) / 255) / na
+            val nb = (sb * sa + db * da * (255 - sa) / 255) / na
+            dst[i] = (na shl 24) or (nb shl 16) or (ng shl 8) or nr
+        }
+    }
+
+    /** 把 ARGB 像素数组编码为 PNG 瓦片 */
+    private fun encode(pixels: IntArray): Tile {
         val bmp = Bitmap.createBitmap(TILE, TILE, Bitmap.Config.ARGB_8888)
-        bmp.setPixels(dest, 0, TILE, 0, 0, TILE, TILE)
+        bmp.setPixels(pixels, 0, TILE, 0, 0, TILE, TILE)
         val bos = ByteArrayOutputStream()
         bmp.compress(Bitmap.CompressFormat.PNG, 100, bos)
         bmp.recycle()
@@ -141,18 +203,18 @@ class CustomTileProvider(
     }
 
     /** 源全球像素（浮点，坐标系取决于 crs）→ 最近邻取样像素颜色；取不到返回透明 */
-    private fun sampleSourcePixel(fx: Double, fy: Double, zoom: Int): Int {
+    private fun sampleSourcePixel(tpl: String, fx: Double, fy: Double, zoom: Int): Int {
         val tileX = floor(fx / TILE).toInt()
         val tileY = floor(fy / TILE).toInt()
         val inX = (fx - tileX * TILE).roundToInt().coerceIn(0, TILE - 1)
         val inY = (fy - tileY * TILE).roundToInt().coerceIn(0, TILE - 1)
-        val pixels = sourceTilePixels(tileX, tileY, zoom) ?: return 0
+        val pixels = sourceTilePixels(tpl, tileX, tileY, zoom) ?: return 0
         return pixels[inY * TILE + inX]
     }
 
-    /** 下载源瓦片并解出像素（带全局缓存） */
-    private fun sourceTilePixels(tileX: Int, tileY: Int, zoom: Int): IntArray? {
-        val key = "${source.id}:$zoom:$tileX:$tileY"
+    /** 下载源瓦片并解出像素（带全局缓存）；tpl 指定具体图层模板（复合图层各层用各自的 URL） */
+    private fun sourceTilePixels(tpl: String, tileX: Int, tileY: Int, zoom: Int): IntArray? {
+        val key = "${source.id}:${tpl.hashCode()}:$zoom:$tileX:$tileY"
         synchronized(tileCache) { tileCache.get(key) }?.let { return it }
 
         // BD09 网格负瓦片号需加 M 前缀；WGS84/XYZ 不会有负号（超出±180°/±85° 无瓦片）
@@ -168,7 +230,7 @@ class CustomTileProvider(
             xStr = tileX.toString()
             yStr = tileY.toString()
         }
-        val url = renderUrlWithCoords(source.urlTemplate, xStr, yStr, zoom, tileX, tileY)
+        val url = renderUrlWithCoords(tpl, xStr, yStr, zoom, tileX, tileY)
         val bytes = download(url) ?: return null
         val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
         val pixels = IntArray(TILE * TILE)

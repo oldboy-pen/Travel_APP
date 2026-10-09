@@ -51,7 +51,7 @@ fun previewOf(source: MapSource): Int? = when (source.id) {
     // 截一张 z12 缩略图放到 res/drawable-nodpi/ 再加一行映射即可）
     "baidu.street" -> R.drawable.pv_baidu_street
     "baidu.satellite" -> R.drawable.pv_baidu_sat
-    "tdt.ter", "opentopomap" -> R.drawable.pv_hillshade
+    "tdt.terrain", "opentopomap" -> R.drawable.pv_hillshade
     else -> null // 自定义图源：图标占位
 }
 
@@ -148,6 +148,16 @@ fun MapLayerSwitcher(
 private fun trySelectBase(context: android.content.Context, id: String?) {
     id ?: return
     val source = MapSourceStore.findSource(id) ?: return
+    // 天地图走瓦片 API（tdt.*，needsKey=true），Key 在图源管理面板而非 manifest：
+    // 没填 Key 时瓦片请求全部 403，地图会白屏，这里直接拦下并引导配置。
+    if (source.needsKey && MapSourceStore.tiandituKey.isBlank()) {
+        Toast.makeText(
+            context,
+            "尚未配置天地图 Key：请到「管理图源…」面板填写（免费，lbs.tianditu.gov.cn 申请）",
+            Toast.LENGTH_LONG
+        ).show()
+        return
+    }
     if (!MapEngineKeys.isConfigured(source.engineKind)) {
         Toast.makeText(context, MapEngineKeys.missingHint(source.engineKind), Toast.LENGTH_LONG)
             .show()

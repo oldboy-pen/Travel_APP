@@ -40,11 +40,17 @@ object MapSourceStore {
         private set
 
     /**
-     * 运动页自动叠加的等高线源 id：
-     * 用户填了镜像地址→自定义叠加源 "contour.override"（WGS-84），否则回落内置 opentopomap。
+     * 运动页自动叠加的等高线源 id（优先级）：
+     * 1. 用户填了镜像地址 → 自定义叠加源 "contour.override"（WGS-84，可达）；
+     * 2. 配置了天地图 Key → 用天地图「等高线注记」(tdt.cta)，国内节点、GCJ-02 对齐、最稳；
+     * 3. 否则回落内置 OpenTopoMap（WGS-84，境外服务器，国内可能不可达）。
      */
     val contourSourceId: String
-        get() = if (customOf("contour.override") != null) "contour.override" else "opentopomap"
+        get() = when {
+            customOf("contour.override") != null -> "contour.override"
+            tiandituKey.isNotBlank() -> "tdt.cta"
+            else -> "opentopomap"
+        }
 
     @Volatile
     private var loaded = false
@@ -87,7 +93,12 @@ object MapSourceStore {
                                 val h = o.optJSONObject("headers")
                                 if (h == null) emptyMap() else h.keys().asSequence()
                                     .associateWith { h.optString(it) }
-                            }.getOrDefault(emptyMap())
+                            }.getOrDefault(emptyMap()),
+                            layers = runCatching {
+                                val arr = o.optJSONArray("layers")
+                                if (arr == null) emptyList() else
+                                    (0 until arr.length()).map { arr.getString(it) }
+                            }.getOrDefault(emptyList())
                         )
                     )
                 }
@@ -121,6 +132,7 @@ object MapSourceStore {
                         .put("overlay", it.isOverlay)
                         .put("needsKey", it.needsKey)
                         .put("headers", JSONObject().apply { it.headers.forEach { (k, v) -> put(k, v) } })
+                        .put("layers", JSONArray().apply { it.layers.forEach { put(it) } })
                 )
             }
             root.put("customSources", arr)

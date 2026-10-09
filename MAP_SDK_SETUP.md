@@ -130,6 +130,10 @@ ui/… 三个地图页
 
 MapEnginePool：按「页面 × 厂商」池化，只创建不销毁，Activity ON_DESTROY 才释放
 MapEngineKeys：从 Manifest meta-data 读三家 Key
+
+天地图：不接 SDK。官方瓦片 REST API（t{0-7}.tianditu.gov.cn/DataServer?T=vec_w/img_w/
+ter_w/cva_w/cia_w/cta_w&x&y&l&tk=Key）→ tdt.* 内置图源 → CustomTileProvider 逐像素
+GCJ→WGS 重投影 → 高德引擎 TileOverlay 渲染；Key 存 MapSourceStore.tiandituKey（图源管理面板）。
 ```
 
 三条使用纪律（写在 `map/MapEngine.kt` 头部注释里）：

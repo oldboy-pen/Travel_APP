@@ -41,6 +41,9 @@ tencent-map-foundation = { group = "com.tencent.openmap", name = "foundation", v
 # 百度地图（BD-09，App 内统一用 GCJ-02，由 BaiduMapEngine 负责转换）
 baidu-map-sdk = { group = "com.baidu.lbsyun", name = "BaiduMapSDK_Map", version.ref = "baiduMapSdk" }
 
+# 天地图：不接 SDK、无任何依赖。瓦片走官方 REST API（DataServer?T=vec_w&tk=Key），
+#   tdt.* 内置图源 + CustomTileProvider 在高德引擎上叠加渲染；Key 存 MapSourceStore.tiandituKey。
+
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }

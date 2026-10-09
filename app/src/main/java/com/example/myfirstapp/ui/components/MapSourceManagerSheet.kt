@@ -491,7 +491,9 @@ private fun TiandituKeySection() {
     Column {
         Text("天地图 Key", fontSize = 16.sp, fontWeight = FontWeight.Bold)
         Text(
-            "天地图矢量/卫星/地形/标注需免费 Key。到 lbs.tianditu.gov.cn → 控制台 → 创建应用（类型选「Android端」或「浏览器端」均可）复制 Key 填到这里。",
+            "天地图矢量/卫星/地形/标注通过官方瓦片 API 渲染（不使用 SDK），需免费 Key。" +
+                "到 lbs.tianditu.gov.cn → 控制台 → 创建应用（类型选「浏览器端」，域名留空即可）" +
+                "→ 添加 Key 复制后填到这里，保存即生效。",
             fontSize = 12.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
