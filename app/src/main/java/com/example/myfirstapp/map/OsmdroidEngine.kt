@@ -94,14 +94,17 @@ class OsmdroidEngine(context: Context) : MapEngine {
     /**
      * 当前位置图层（osmdroid 官方组件）：负责画定位点与精度圈，位置有两个来源——
      * 内置定位源（[locationProvider]）或业务层喂进来的点（[updateDeviceLocation]）。
-     * 图标换成与高德蓝点一致的样式（组件默认是个蓝色小人形）。
+     * 图标换成与高德一致的蓝色箭头（组件默认是个蓝色小人形）。
      */
     private val myLocationOverlay: MyLocationNewOverlay = MyLocationNewOverlay(
         locationProvider, mapView
     ).apply {
-        setPersonIcon(blueDotBitmap())
+        // 两种状态（有/无航向）都用同一支箭头：有航向时组件按 bearing 旋转，
+        // 没航向时箭头朝正北 —— 与高德地图的蓝点表现一致
+        val arrow = locationArrowBitmap()
+        setPersonIcon(arrow)
         setPersonAnchor(0.5f, 0.5f)
-        setDirectionIcon(directionArrowBitmap())
+        setDirectionIcon(arrow)
         setDirectionAnchor(0.5f, 0.5f)
         setDrawAccuracyEnabled(true)
         setEnableAutoStop(false)   // 跟随的开关完全交给 App（手势退出跟随见 init 里的 MapListener）
@@ -113,6 +116,8 @@ class OsmdroidEngine(context: Context) : MapEngine {
     private var followOn = false
     /** 业务侧是否要求显示当前位置（[setMyLocationEnabled] 的开关） */
     private var locationRequested = false
+    /** 最近一次有效航向：定位暂时给不出 bearing 时沿用，避免箭头一下子弹回正北 */
+    private var lastBearing = 0f
 
     init {
         configure(appContext)
@@ -471,8 +476,9 @@ class OsmdroidEngine(context: Context) : MapEngine {
             latitude = w[1]
             longitude = w[0]
             if (accuracy > 0f) this.accuracy = accuracy
-            // 有航向才设 bearing：MyLocationNewOverlay 在 hasBearing() 时会画方向箭头而不是圆点
-            if (bearing > 0f) this.bearing = bearing
+            // 有航向就按航向旋转箭头；这一帧没有航向时沿用上一次的朝向（静止时箭头不弹回正北）
+            if (bearing > 0f) lastBearing = bearing
+            if (lastBearing > 0f) this.bearing = lastBearing
             time = System.currentTimeMillis()
         }
     }
@@ -592,51 +598,35 @@ class OsmdroidEngine(context: Context) : MapEngine {
     }
 
     /**
-     * 自绘蓝色定位点（实心蓝圆 + 白环）：作为 MyLocationNewOverlay 的 person 图标，
-     * 没有航向（静止/刚定位）时画它，观感与高德的蓝点一致。
+     * 自绘「高德风格」定位箭头：尖头朝正上（= 正北），蓝底白边，尾部圆润。
+     *
+     * ★ 同时用作 MyLocationNewOverlay 的 person 与 direction 图标：官方组件在有航向时
+     *   画 direction 并按 bearing 旋转，没航向时画 person（不旋转）。两个都设成箭头，
+     *   静止时也显示箭头（朝正北），表现与高德地图的蓝点一致。
+     * ★ 锚点固定用中心（0.5/0.5），即位置点落在箭头的中心 —— 与高德一致
+     *   （组件默认的人形图标锚点是脚底 0.5/0.8125，用在箭头上会整体偏上）。
      */
-    private fun blueDotBitmap(): Bitmap {
+    private fun locationArrowBitmap(): Bitmap {
         val density = appContext.resources.displayMetrics.density
-        val size = (24 * density).toInt().coerceAtLeast(1)
-        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bmp)
-        val r = size / 2f
-        val white = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL; color = 0xFFFFFFFF.toInt()
-        }
-        canvas.drawCircle(r, r, r - 1, white)
-        val blue = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL; color = 0xFF1E88E5.toInt()
-        }
-        canvas.drawCircle(r, r, r * 0.62f, blue)
-        return bmp
-    }
-
-    /**
-     * 自绘方向箭头（尖头朝正上 = 正北）：作为 MyLocationNewOverlay 的 direction 图标，
-     * 有航向（移动中）时画它，并按 bearing 旋转 —— 官方组件的锚点固定用中心，
-     * 所以箭头画成正方形、尖端贴顶边，旋转后就是从中心指向行进方向。
-     */
-    private fun directionArrowBitmap(): Bitmap {
-        val density = appContext.resources.displayMetrics.density
-        val size = (30 * density).toInt().coerceAtLeast(4)
+        val size = (32 * density).toInt().coerceAtLeast(6)
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         val cx = size / 2f
+        val halfW = size * 0.32f
         val path = android.graphics.Path().apply {
-            moveTo(cx, size * 0.06f)          // 尖端（正北）
-            lineTo(size * 0.86f, size * 0.88f)
-            lineTo(cx, size * 0.66f)          // 底部内凹
-            lineTo(size * 0.14f, size * 0.88f)
+            moveTo(cx, size * 0.04f)                                            // 尖端（正北）
+            quadTo(cx + halfW, size * 0.34f, cx + halfW * 0.84f, size * 0.78f)  // 右侧弧
+            quadTo(cx, size * 0.99f, cx - halfW * 0.84f, size * 0.78f)          // 圆润尾部
+            quadTo(cx - halfW, size * 0.34f, cx, size * 0.04f)                  // 左侧弧
             close()
         }
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         paint.style = Paint.Style.FILL
-        paint.color = 0xFF1E88E5.toInt()
+        paint.color = 0xFF1E88E5.toInt()          // 与高德蓝点 / 本 App 记录箭头同色
         canvas.drawPath(path, paint)
-        // 白描边：在深色底图（卫星/地形）上也能看清
+        // 白描边：在深色底图（卫星/地形）上也看得清
         paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 2f * density
+        paint.strokeWidth = 2.2f * density
         paint.strokeJoin = Paint.Join.ROUND
         paint.color = 0xFFFFFFFF.toInt()
         canvas.drawPath(path, paint)
