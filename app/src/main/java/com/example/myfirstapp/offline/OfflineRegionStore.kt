@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.example.myfirstapp.mapsources.MapSourceStore
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -107,6 +108,8 @@ object OfflineRegionStore {
                             bytes = o.optLong("bytes", 0L),
                             createdAt = o.optLong("createdAt", System.currentTimeMillis()),
                             includeElevation = o.optBoolean("elev", false),
+                            // 没有这个键 = 本字段上线前建的区域，留空串由 MapSourceStore 按图源反查
+                            tileCrs = o.optString("crs", ""),
                             error = o.optString("error", "").ifEmpty { null }
                         )
                     )
@@ -158,6 +161,7 @@ object OfflineRegionStore {
                         .put("bytes", r.bytes)
                         .put("createdAt", r.createdAt)
                         .put("elev", r.includeElevation)
+                        .put("crs", r.tileCrs)
                         .put("error", r.error ?: "")
                 )
             }
@@ -219,6 +223,9 @@ object OfflineRegionStore {
     fun remove(id: String) {
         regions.removeAll { it.id == id }
         runCatching { MbTiles.open(OfflineStorage.regionFile(id)).deleteFile() }
+        // 被删的区域可能正被当作底图选中（它派生出了一张离线图源），通知图源仓库改选，
+        // 否则 activeBaseId 还指着 "offline:<id>"，图层面板会显示成"一张都没选中"
+        MapSourceStore.onOfflineRegionRemoved(id)
         save()
     }
 
@@ -226,6 +233,7 @@ object OfflineRegionStore {
     fun clearAll() {
         regions.forEach { r ->
             runCatching { MbTiles.open(OfflineStorage.regionFile(r.id)).deleteFile() }
+            MapSourceStore.onOfflineRegionRemoved(r.id)
         }
         regions.clear()
         runCatching { MbTiles.open(OfflineStorage.elevationFile).deleteFile() }

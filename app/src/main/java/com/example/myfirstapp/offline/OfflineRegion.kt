@@ -1,5 +1,7 @@
 package com.example.myfirstapp.offline
 
+import com.example.myfirstapp.mapsources.TileCrs
+
 /**
  * 一个离线区域：某个图源在某个经纬度矩形、某个缩放级别区间内的瓦片集合。
  *
@@ -33,6 +35,15 @@ data class OfflineRegion(
     val bytes: Long = 0,
     val createdAt: Long = System.currentTimeMillis(),
     val includeElevation: Boolean = false,
+    /**
+     * 原始图源的瓦片坐标系枚举名（"WGS84" / "GCJ02" / "BD09"）；空串 = 老清单没记。
+     *
+     * ★ 存在这里的理由：图源随时可能被用户删掉，但离线存档还在。存档的瓦片网格是按
+     *   原图源坐标系抓的，渲染时必须知道它，否则无法判断能不能作为独立图源、
+     *   以及贴到 osmdroid 的 WGS-84 网格上会不会偏移。
+     * 存枚举名而不是枚举对象：JSON 落盘要稳定，枚举改名不炸。
+     */
+    val tileCrs: String = "",
     val error: String? = null
 ) {
     /** 进度 0..1（total 未知时给 0，UI 显示"计算中"） */
@@ -45,6 +56,15 @@ data class OfflineRegion(
     /** 中心点（UI 定位/排序用） */
     val centerLat: Double get() = (minLat + maxLat) / 2.0
     val centerLon: Double get() = (minLon + maxLon) / 2.0
+
+    /**
+     * 是否是 WGS-84 网格的存档 —— 只有这类区域能派生出独立的离线图源（见 MapSource 说明）。
+     *
+     * ★ 空串（老清单没记 CRS）时这里**不能**直接断定，必须按 [sourceId] 反查原图源的
+     *   CRS 才能下结论 —— 那一步在 MapSourceStore 里做（它有图源表）。本属性只走
+     *   "明确记了 WGS84"的快路径，宁可返回 false（不派生图源）也不冒偏移几百米的风险。
+     */
+    val isWgs84: Boolean get() = tileCrs == TileCrs.WGS84.name
 }
 
 /** 离线区域状态 */

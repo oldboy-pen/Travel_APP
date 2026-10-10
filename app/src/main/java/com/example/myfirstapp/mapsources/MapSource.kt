@@ -79,21 +79,37 @@ data class MapSource(
      * 路由遵循 [engineKind]：WGS84 子层（天地图矢量/卫星/地形）由 osmdroid 引擎原生渲染，
      * 不再走 [CustomTileProvider] 逐像素重投影；GCJ02/BD09 子层仍由高德 CustomTileProvider 叠加。
      */
-    val layers: List<String> = emptyList()
+    val layers: List<String> = emptyList(),
+    /**
+     * 非空 = 这是一个**离线区域图源**，值为对应 [com.example.myfirstapp.offline.OfflineRegion.id]。
+     *
+     * 由已完成的离线区域动态派生（不落盘、不进自定义图源列表），作为一张独立底图出现在
+     * 图层切换器里。选中后地图只读该区域的 MBTiles 存档，默认不联网 ——
+     * 这样用户能直接看出"这块区域到底下载全了没有"。
+     *
+     * ★ 之所以只由 **WGS84** 区域派生：只有 osmdroid 引擎能读 MBTiles 存档，
+     *   而 osmdroid 是 WGS-84 网格。GCJ02 区域下载的瓦片贴到 WGS84 网格上会有数百米偏移，
+     *   所以 GCJ02 离线数据只作为"原图源的离线加速"，不单独成图源。
+     */
+    val offlineRegionId: String? = null
 ) {
     /** 这张图由哪家引擎渲染：
      *  厂商原生图源 → 对应厂商 SDK；
+     *  ★ 离线区域图源 → osmdroid（只有它原生支持 MBTiles 存档 + 低级别近似放大）；
      *  WGS84 瓦片图源（天地图/OpenTopoMap/自定义 WGS）→ osmdroid 原生渲染（免重投影）；
      *  其余瓦片图源（GCJ02/BD09）→ 高德引擎 + CustomTileProvider 叠加 */
     val engineKind: MapEngineKind
         get() = when {
             nativeType != null -> nativeType!!.kind
+            offlineRegionId != null -> MapEngineKind.OSMDROID
             isTileSource && crs == TileCrs.WGS84 -> MapEngineKind.OSMDROID
             else -> MapEngineKind.AMAP
         }
 
-    /** 是否是"抓瓦片叠加"的图源（没有原生 SDK 可走） */
-    val isTileSource: Boolean get() = nativeType == null && (urlTemplate.isNotBlank() || layers.isNotEmpty())
+    /** 是否是"抓瓦片叠加"的图源（没有原生 SDK 可走）。离线区域图源不抓瓦片，故为 false */
+    val isTileSource: Boolean get() = nativeType == null &&
+        offlineRegionId == null &&
+        (urlTemplate.isNotBlank() || layers.isNotEmpty())
 
     companion object {
         /** 内置图源。nativeType 非空=走该厂商原生 SDK；空=瓦片叠加在高德底图上 */
@@ -198,5 +214,19 @@ data class MapSource(
         )
 
         fun find(id: String?): MapSource? = if (id == null) null else BUILTINS.firstOrNull { it.id == id }
+
+        // ==================== 离线区域图源 ====================
+
+        /** 离线区域图源的 id 前缀 */
+        const val OFFLINE_PREFIX = "offline:"
+
+        /** 区域 id → 离线图源 id */
+        fun offlineSourceId(regionId: String): String = OFFLINE_PREFIX + regionId
+
+        /** 图源 id → 区域 id（非离线图源返回 null） */
+        fun regionIdOf(sourceId: String?): String? =
+            if (sourceId != null && sourceId.startsWith(OFFLINE_PREFIX))
+                sourceId.removePrefix(OFFLINE_PREFIX)
+            else null
     }
 }

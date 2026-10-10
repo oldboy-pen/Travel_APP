@@ -16,6 +16,7 @@ import com.example.myfirstapp.mapsources.GeoTransform
 import com.example.myfirstapp.mapsources.MapSource
 import com.example.myfirstapp.mapsources.MapSourceStore
 import com.example.myfirstapp.mapsources.TileHttp
+import com.example.myfirstapp.offline.OfflineRegion
 import com.example.myfirstapp.offline.OfflineRegionStore
 import com.example.myfirstapp.offline.OfflineStorage
 import com.example.myfirstapp.offline.OfflineTileProviders
@@ -25,6 +26,7 @@ import org.osmdroid.util.GeoPoint as OsmGeoPoint
 import org.osmdroid.util.MapTileIndex
 import org.osmdroid.tileprovider.MapTileProviderBase
 import org.osmdroid.tileprovider.MapTileProviderBasic
+import org.osmdroid.tileprovider.tilesource.BitmapTileSourceBase
 import org.osmdroid.tileprovider.tilesource.ITileSource
 import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -84,6 +86,9 @@ class OsmdroidEngine(context: Context) : MapEngine {
 
     /** 当前主底图 provider 的指纹（图源 + 离线开关 + 区域版本），用于避免无谓的 provider 重建 */
     private var baseSourceKey: String? = null
+
+    /** 上一次 applyBase 的图源 id：用于判断"换图"还是"同一张图因离线数据变动而重刷" */
+    private var appliedBaseId: String? = null
 
     private var longClickCb: ((GeoPoint) -> Unit)? = null
     private var gestureCb: (() -> Unit)? = null
@@ -234,8 +239,20 @@ class OsmdroidEngine(context: Context) : MapEngine {
     // ==================== 底图 / 叠加层 ====================
 
     override fun applyBase(source: MapSource) {
+        // 是否"换了一张图"（区别于同一张图因离线区域增删而重刷）：只有换图才自动带镜头
+        val switched = appliedBaseId != source.id
+        appliedBaseId = source.id
+
         // 清掉旧的复合底图叠加层（叠加层由随后的 applyOverlay 重刷）
         removeLayers(baseLayers)
+
+        // ★ 离线区域图源：底图就是某个区域的 MBTiles 存档，没有任何 URL 模板可拼
+        val regionId = source.offlineRegionId
+        if (regionId != null) {
+            applyOfflineArchive(regionId, source, switched)
+            restack()
+            return
+        }
 
         val templates = when {
             source.layers.isNotEmpty() -> source.layers
@@ -314,6 +331,71 @@ class OsmdroidEngine(context: Context) : MapEngine {
         overlays.addAll(business)
         mapView.invalidate()
     }
+
+    /**
+     * 「离线区域」作为**独立图源**被选中时走这里：把该区域的存档挂成主瓦片源。
+     *
+     * ★ 只挂这一块区域的存档，且**强制断网**（offlineOnly=true）：用户看到的画面
+     *   = 这块区域实际下载到的内容，区域外/级别外一律空白，不会被在线瓦片偷偷补齐
+     *   而误以为"下载全了"——这正是把它做成独立图源的意义（验收离线覆盖率）。
+     *
+     * @param switched 本次是否是"从别的图源切过来"（true 时把镜头带到区域范围）
+     */
+    private fun applyOfflineArchive(regionId: String, source: MapSource, switched: Boolean) {
+        val region = OfflineRegionStore.byId(regionId)
+        val ts = offlineTileSource(
+            regionId,
+            region?.minZoom ?: source.minZoom,
+            region?.maxZoom ?: source.maxZoom
+        )
+        val archives = OfflineTileProviders.openArchives(listOf(OfflineStorage.regionFile(regionId)))
+        // 指纹带上存档数量：区域还在下载时存档是空的，下完后要能重建成离线链
+        val key = "${MapSource.OFFLINE_PREFIX}$regionId|${archives.size}|${OfflineRegionStore.revision}"
+        if (key != baseSourceKey) {
+            runCatching {
+                mapView.setTileProvider(
+                    OfflineTileProviders.create(appContext, ts, archives, offlineOnly = true)
+                )
+            }
+            baseSourceKey = key
+        } else {
+            // 链没变（同一区域、存档数量与清单版本都没动），只换 tileSource 省掉一次重建
+            runCatching { mapView.setTileSource(ts) }
+        }
+        // 切过来的第一眼要把镜头带到那块区域：否则用户正看着别处，
+        // 选中后满屏空白会以为坏了（区域范围之外的确什么都没有）
+        if (switched && region != null) fitRegion(region)
+    }
+
+    /** 把镜头框到某个离线区域的范围（区域 bbox 按业务层 GCJ-02 存，边界处转 WGS-84） */
+    private fun fitRegion(region: OfflineRegion) {
+        val box = BoundingBox.fromGeoPoints(
+            listOf(
+                toWgs(GeoPoint(region.maxLat, region.minLon)),
+                toWgs(GeoPoint(region.minLat, region.maxLon))
+            )
+        )
+        // 与 fitBounds 同理：View 还没测量时算不出 zoom，post 一次再执行
+        if (mapView.width > 0 && mapView.height > 0) mapView.zoomToBoundingBox(box, false, 24)
+        else mapView.post { mapView.zoomToBoundingBox(box, false, 24) }
+    }
+
+    /**
+     * 离线存档专用的瓦片源：只提供"名字 + 级别范围 + 解码字节流"，**没有任何 URL**。
+     *
+     * ★ 为什么这样就行（已核 osmdroid 6.1.20 源码）：
+     *   - `MapTileFileArchiveProvider` 只按瓦片索引查存档，`getInputStream(tileSource, index)`
+     *     内部**不比对图源名**（MBTiles 规范里本来就没有图源这一列），所以名字随便起；
+     *   - `MapTileDownloader.setTileSource` 只接受 `OnlineTileSourceBase`，遇到本类
+     *     它的 mTileSource 保持 null，loadTile 直接返回 null —— 天然不会联网。
+     *   两层保险叠上 offlineOnly=true，这条链彻底出不了网。
+     */
+    private fun offlineTileSource(regionId: String, minZoom: Int, maxZoom: Int): ITileSource =
+        object : BitmapTileSourceBase(
+            // 名字会进文件系统路径 / SQL 缓存键：区域 id 是 UUID，这里滤掉所有非法字符
+            "offline_" + regionId.filter { it.isLetterOrDigit() || it == '-' || it == '_' },
+            minZoom, maxZoom, 256, ".png", "离线存档"
+        ) { }
 
     /**
      * ★ 构造瓦片提供器：离线优先。

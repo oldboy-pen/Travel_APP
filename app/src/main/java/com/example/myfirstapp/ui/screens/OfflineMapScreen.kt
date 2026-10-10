@@ -308,6 +308,9 @@ private fun RegionsTab(context: android.content.Context) {
                                 minZoom = minZoom.toInt(),
                                 maxZoom = maxZoom.toInt(),
                                 includeElevation = includeElevation,
+                                // ★ 记下抓瓦片用的是哪套网格：图源以后被删了、存档还在，
+                                //   只有靠它才能判断这块存档能不能当成独立图源（见 MapSourceStore）
+                                tileCrs = s.crs.name,
                                 status = OfflineRegionStatus.QUEUED,
                                 totalTiles = tileCount.toInt()
                             )
@@ -371,6 +374,16 @@ private fun RegionRow(region: OfflineRegion, onResume: () -> Unit) {
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            // 已就绪的区域怎么用：WGS-84 网格的能派生出独立图源（图层面板里直接选），
+            // 其余坐标系的只作为原图源的离线加速（贴到 osmdroid 的 WGS-84 网格会偏移）
+            if (region.status == OfflineRegionStatus.READY) {
+                Text(
+                    if (region.isWgs84) "可作为独立图源：图层面板 → 底图里选它"
+                    else "作为「${region.sourceName}」的离线加速，不单独成图源",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
             if (region.totalTiles > 0) {
                 Spacer(Modifier.height(4.dp))
                 LinearProgressIndicator(

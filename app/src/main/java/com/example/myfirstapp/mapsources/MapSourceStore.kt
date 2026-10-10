@@ -4,6 +4,9 @@ import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.example.myfirstapp.offline.OfflineRegion
+import com.example.myfirstapp.offline.OfflineRegionStatus
+import com.example.myfirstapp.offline.OfflineRegionStore
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -104,8 +107,14 @@ object MapSourceStore {
                 }
                 customSources = list
             }
-            // 校正：activeBaseId 不存在则回退默认
-            if (findSource(activeBaseId) == null) activeBaseId = "amap.normal"
+            // 校正：内置/自定义里都查不到才回退默认。
+            // ★ 离线图源（"offline:" 前缀）特意不在这里回退：它们是从 OfflineRegionStore
+            //   现算出来的，而两个 store 的 ensureLoaded 互不依赖、谁先谁后不定；
+            //   在区域清单还没加载时判定"不存在"会把用户已选的离线底图误清成高德。
+            if (!isOfflineId(activeBaseId) &&
+                MapSource.find(activeBaseId) == null &&
+                customOf(activeBaseId) == null
+            ) activeBaseId = "amap.normal"
             if (activeOverlayId != null && findSource(activeOverlayId) == null) activeOverlayId = null
             loaded = true
         }
@@ -145,7 +154,9 @@ object MapSourceStore {
     // ==================== 查询 ====================
 
     fun allBases(): List<MapSource> =
-        MapSource.BUILTINS.filter { !it.isOverlay } + customSources.filter { !it.isOverlay }
+        MapSource.BUILTINS.filter { !it.isOverlay } +
+            customSources.filter { !it.isOverlay } +
+            offlineSources()
 
     fun allOverlays(): List<MapSource> =
         MapSource.BUILTINS.filter { it.isOverlay } + customSources.filter { it.isOverlay }
@@ -154,7 +165,65 @@ object MapSourceStore {
 
     fun findSource(id: String?): MapSource? {
         if (id == null) return null
+        val regionId = MapSource.regionIdOf(id)
+        if (regionId != null) {
+            // 离线图源不落盘：按 id 反查区域现算（区域被删 / 没下完 = 这张图不存在）
+            val r = OfflineRegionStore.byId(regionId) ?: return null
+            return offlineSourceOf(r)
+        }
         return MapSource.find(id) ?: customOf(id)
+    }
+
+    /** 该 id 是否是离线区域派生出来的图源 */
+    fun isOfflineId(id: String?): Boolean = MapSource.regionIdOf(id) != null
+
+    // ==================== 离线区域 → 独立图源 ====================
+
+    /**
+     * 由「已就绪的离线区域」动态派生出的独立底图，直接出现在图层切换器里。
+     *
+     * ★ **不落盘**（不写进 map_sources.json）：区域是动态数据（会下完、会删掉），
+     *   图源列表必须随它实时变；写盘就会出现"清单里有这张图、存档早没了"的幽灵图源。
+     *
+     * ★ **只派生 WGS-84 网格的区域**：只有 osmdroid 引擎能读 MBTiles 存档，而它本身是
+     *   WGS-84 网格；GCJ-02 存档贴上去会整体偏移几百米。GCJ-02 的离线数据照样有用 ——
+     *   它作为原图源的"离线加速"（OsmdroidEngine 按图源 id 找存档），只是不单独成图源。
+     *
+     * ★ 选中后的语义是"只读这块存档、不联网"（见 OsmdroidEngine.applyOfflineArchive）：
+     *   用户看到的画面 = 该区域真正下载到了什么，区域外/级别外一律空白，
+     *   不会被在线瓦片偷偷补齐而误以为下载完整。
+     */
+    fun offlineSources(): List<MapSource> =
+        OfflineRegionStore.regions.mapNotNull { offlineSourceOf(it) }
+
+    /** 区域 → 图源；不满足条件（未就绪 / 非 WGS-84 网格）返回 null */
+    private fun offlineSourceOf(region: OfflineRegion): MapSource? {
+        if (region.status != OfflineRegionStatus.READY) return null
+        // 老清单没记 CRS：按原图源现查一次。查不到就当非 WGS-84 —— 宁可不派生，也不偏移
+        val wgs = region.isWgs84 ||
+            (region.tileCrs.isBlank() && findSource(region.sourceId)?.crs == TileCrs.WGS84)
+        if (!wgs) return null
+        return MapSource(
+            id = MapSource.offlineSourceId(region.id),
+            name = "离线 · ${region.name}",
+            crs = TileCrs.WGS84,
+            minZoom = region.minZoom,
+            maxZoom = region.maxZoom,
+            builtin = false,
+            attribution = "离线存档 · ${region.sourceName.ifBlank { "未知图源" }}",
+            offlineRegionId = region.id
+        )
+    }
+
+    /**
+     * 离线区域被删除时的回调（OfflineRegionStore.remove / clearAll 调用）：
+     * 清掉指向它的底图选择，否则图层面板会显示成"一张都没选中"。
+     */
+    fun onOfflineRegionRemoved(regionId: String) {
+        if (MapSource.regionIdOf(activeBaseId) == regionId) {
+            activeBaseId = "amap.normal"
+            save()
+        }
     }
 
     fun activeBase(): MapSource = findSource(activeBaseId) ?: MapSource.find("amap.normal")!!

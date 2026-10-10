@@ -14,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material3.*
@@ -36,6 +37,7 @@ import com.example.myfirstapp.R
 import com.example.myfirstapp.map.MapEngineKeys
 import com.example.myfirstapp.mapsources.MapSource
 import com.example.myfirstapp.mapsources.MapSourceStore
+import com.example.myfirstapp.offline.OfflineRegionStore
 import com.example.myfirstapp.track.TrackColorStore
 
 /** 内置图源 → 预览缩略图（真实瓦片，成都/四姑娘山一带 z12） */
@@ -85,6 +87,9 @@ fun MapLayerSwitcher(
     // 首次进入也确保 store 已加载（页面未调用 ensureLoaded 时兜底）
     LaunchedEffect(Unit) {
         MapSourceStore.ensureLoaded(context)
+        // ★ 离线区域清单：底图列表里那几张「离线 · …」是从区域现算出来的，
+        //   清单没加载就一张都不会出现（也选不中，trySelectBase 会静默失败）
+        OfflineRegionStore.ensureLoaded(context)
         MapEngineKeys.init(context)
         TrackColorStore.ensureLoaded(context)
     }
@@ -414,7 +419,12 @@ private fun SourceCard(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     Icon(
-                        if (source == null) Icons.Default.Clear else Icons.Default.Map,
+                        when {
+                            // 没有预览缩略图时的图标占位：离线区域用"下载"图标，一眼能认出
+                            source == null -> Icons.Default.Clear
+                            source.offlineRegionId != null -> Icons.Default.DownloadForOffline
+                            else -> Icons.Default.Map
+                        },
                         contentDescription = null,
                         tint = if (source == null) MaterialTheme.colorScheme.onSurfaceVariant
                         else MaterialTheme.colorScheme.primary,
