@@ -130,6 +130,26 @@ class OsmdroidEngine(context: Context) : MapEngine {
 
     init {
         configure(appContext)
+        // ★★★ 关键：关掉「摘下 View 就自毁」（真实崩溃根因，adb logcat 实证）
+        //
+        // osmdroid 的 MapView 构造里写死了 mDestroyModeOnDetach = true，于是
+        // onDetachedFromWindow() 会自动调 onDetach()，一次性把整个 MapView 报废：
+        //   ① 主瓦片提供器 detach        → 底图瓦片不再加载（切回来是黑/白屏）
+        //   ② 所有 Overlay 逐个 onDetach → MyLocationNewOverlay 内部的定位源被置 null，
+        //                                  之后 enableMyLocation() 直接抛
+        //                                  "You must pass an IMyLocationProvider"
+        //   ③ Projection 置 null、MapListener 全清 → 手势/退出跟随全部失效
+        //   ④ MapViewRepository 报废     → 再 new Marker(mapView) 时走
+        //      getDefaultMarkerInfoWindow()，其内部 MapView 已失效 → NullPointerException
+        //
+        // 而 MapEnginePool 的策略是「只创建不销毁、切走只 pause、池化复用」，切一次图源
+        // 再切回来拿到的就是这具尸体。记录页每 2 秒重画一次、且 RECORDING 时才画方向箭头
+        // Marker（RecordScreen 的 redraw），所以表现为「记录中从高德切到天地图必崩」——
+        // 反向不崩是因为走的是 AMapEngine.addMarker，压根不碰这个报废的 MapView。
+        //
+        // 官方给的正是这个开关（MapView.setDestroyMode）：置 false 后摘下 View 不再自毁，
+        // View 可以安全地反复挂载。清理出口仍然保留在 onDestroy() 里的显式 onDetach()。
+        mapView.setDestroyMode(false)
         mapView.setMultiTouchControls(true)
         // 中国区域不重复横/纵向平铺（避免拖到国境线外出现镜像地图）
         mapView.isHorizontalMapRepetitionEnabled = false
@@ -374,13 +394,41 @@ class OsmdroidEngine(context: Context) : MapEngine {
     override fun addPolyline(points: List<GeoPoint>, widthPx: Float, colorArgb: Int) {
         if (points.size < 2) return
         val line = OsmPolyline().apply {
-            setPoints(points.map { toWgs(it) })
+            setPoints(decimate(points).map { toWgs(it) })
             color = colorArgb
             width = widthPx
         }
         mapView.overlays.add(line)
         appOverlays.add(line)
         mapView.invalidate()
+    }
+
+    /**
+     * ★ 轨迹点抽稀（仅本引擎，其它引擎不受影响）。
+     *
+     * osmdroid 是纯 CPU 的 Canvas 渲染：Polyline 的每个点在 setPoints 时要做一次
+     * GCJ→WGS 换算 + LinearRing 构建，之后【每一帧】draw 都要把所有点再做一次
+     * 墨卡托投影并拼进 Path。长时间记录后点数上万（记录页每 2 秒全量重画一次），
+     * 切到天地图的第一次绘制就会把主线程堵死 —— 阻塞 / OOM 都表现为「一切换就闪退」。
+     *
+     * 而屏幕横向通常不到 2000 个像素，同一条线上密到这个程度再加点已经画不出区别，
+     * 因此按等步长抽稀是纯赚：首尾点强制保留，保证两个端点位置不受影响。
+     */
+    private fun decimate(
+        points: List<GeoPoint>,
+        max: Int = MAX_POLYLINE_POINTS
+    ): List<GeoPoint> {
+        if (points.size <= max) return points
+        val step = points.size.toDouble() / max
+        val out = ArrayList<GeoPoint>(max + 1)
+        var i = 0.0
+        while (i < points.size) {
+            out.add(points[i.toInt()])
+            i += step
+        }
+        // 浮点步进可能差一点点没走到最后一个，补上保证线尾位置正确
+        if (out.last() != points.last()) out.add(points.last())
+        return out
     }
 
     override fun addMarker(
@@ -689,6 +737,9 @@ class OsmdroidEngine(context: Context) : MapEngine {
     companion object {
         /** 自造的 Location provider 名（仅用于标记位置来源，不对应真实 provider） */
         private const val LOCATION_PROVIDER_APP = "app"
+
+        /** 单条折线最多画多少个点（超出按等步长抽稀，见 [decimate]） */
+        private const val MAX_POLYLINE_POINTS = 2000
 
         @Volatile
         private var configured = false

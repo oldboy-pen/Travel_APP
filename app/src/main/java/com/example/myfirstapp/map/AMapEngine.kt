@@ -58,16 +58,45 @@ class AMapEngine(context: Context) : MapEngine {
     private var gestureCb: (() -> Unit)? = null
     private var locationCb: ((GeoPoint) -> Unit)? = null
 
+    /** 当前是否已暂停（供 detach 兜底判断，见 init） */
+    private var paused = false
+
+    init {
+        // ★ 兜底：切图源换引擎时，MapSurface 会先 onPause 再摘 View（见 MapSurface 的
+        //   onRelease），正常情况下本监听器不会起作用。这里只是最后一道保险——任何
+        //   调用方忘了在 detach 前 pause，GL 渲染循环都会在 View 离开窗口时被强制停下，
+        //   避免 native 层访问已释放的窗口资源导致整个进程 SIGABRT 闪退。
+        textureMapView.addOnAttachStateChangeListener(
+            object : View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(v: View) = Unit
+                override fun onViewDetachedFromWindow(v: View) {
+                    if (!paused) runCatching { textureMapView.onPause() }
+                }
+            }
+        )
+    }
+
     override fun onCreate() {
         textureMapView.onCreate(null)
     }
 
     override fun onStart() = Unit
-    override fun onResume() = textureMapView.onResume()
-    override fun onPause() = textureMapView.onPause()
+    override fun onResume() {
+        paused = false
+        textureMapView.onResume()
+    }
+
+    override fun onPause() {
+        paused = true
+        textureMapView.onPause()
+    }
+
     override fun onStop() = Unit
 
     override fun onDestroy() {
+        // ★ 先置 paused：销毁后再被 detach（Activity 收尾时 View 才离树）时，
+        //   上面的兜底监听器就不会再去调一个已经 onDestroy 的 TextureMapView.onPause()。
+        paused = true
         clearOverlays()
         clearBaseTile()
         clearOverlayTile()

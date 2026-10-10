@@ -91,7 +91,12 @@ fun MapSurface(
         if (rawOverlay == null || rawOverlay.engineKind == kind) rawOverlay
         else null
 
-    val engine = remember(pageKey, kind) { MapEnginePool.get(pageKey, kind, context) }
+    // 引擎创建失败（比如某家 SDK 初始化抛异常）时回落高德，绝不让"切个图源"把整屏搞崩。
+    // 高德是唯一必配的厂商，回落它至少还能出图。
+    val engine = remember(pageKey, kind) {
+        runCatching { MapEnginePool.get(pageKey, kind, context) }
+            .getOrElse { MapEnginePool.get(pageKey, MapEngineKind.AMAP, context) }
+    }
 
     LaunchedEffect(engine) { state.engine = engine }
 
@@ -125,9 +130,36 @@ fun MapSurface(
         //   用 (页面 + 厂商) 做 key：换厂商时销毁旧节点、按新 factory 挂新厂商的 MapView。
         key(pageKey, kind) {
             AndroidView(
-                factory = { engine.view },
+                factory = {
+                    // ★ 挂载前先解绑：池化复用的 View 可能还挂在上一任父容器上。
+                    // Compose 在 key 变化时是先插入新节点、再释放旧节点，旧节点的
+                    // onRelease 未必赶在这之前执行；此时直接 addView 会抛
+                    // "The specified child already has a parent"（adb logcat 实证），
+                    // 整屏崩溃。这里主动摘一次，让挂载永远从干净状态开始。
+                    (engine.view.parent as? android.view.ViewGroup)?.removeView(engine.view)
+                    engine.view
+                },
                 modifier = Modifier.matchParentSize(),
                 onRelease = { view ->
+                    // ★★ 顺序至关重要：必须【先暂停引擎】，再从视图树里摘掉 View。
+                    //
+                    // 背景（"记录中从高德切到天地图必闪退"的根因）：
+                    //   AndroidView 节点因 key 变化被移除时，会走到 View.onDetachedFromWindow。
+                    //   高德的 TextureMapView 是 GLSurfaceView/TextureView 渲染， detach 时
+                    //   其 GL 渲染线程会被动接触已经失效的窗口资源；如果此刻地图仍处于
+                    //   resume（渲染循环在跑），native 层就会访问已释放的上下文 →
+                    //   SIGSEGV / SIGABRT，整个进程直接闪退（Java 层 try/catch 拦不住）。
+                    //   记录中每 2 秒重绘一次轨迹线，渲染循环几乎时刻忙碌，命中率极高；
+                    //   静止时 GL 线程空闲，detach 反而侥幸不崩 —— 表现就是「记录中切换才崩」。
+                    //
+                    //   反方向（天地图 → 高德）不崩，是因为被摘掉的是 osmdroid 的 MapView：
+                    //   它是纯 Canvas 2D 渲染，没有 GL 线程，detach 前不 pause 也不会炸。
+                    //   两侧不对称正好印证了这一点。
+                    //
+                    // 注意：onRelease 是在 Compose 把 View 摘出视图树【之前】回调的，
+                    // 因此这里补的这次 onPause 能赶在 detach 之前生效。各家 SDK 的
+                    // onPause 都是幂等的，后面 DisposableEffect 再调一次也不会有问题。
+                    runCatching { engine.onPause() }
                     // 从视图树摘除时确保与父容器解绑，避免下次 attach 抛
                     // "child already has a parent" / 多次 attach 状态错乱
                     (view.parent as? android.view.ViewGroup)?.removeView(view)
@@ -138,9 +170,11 @@ fun MapSurface(
     }
 
     // ---- 图源 / 叠加层变化 → 重建底图 ----
+    // 换图源是用户高频操作，瓦片源构造/叠加层切换一旦抛异常不该带崩整屏，
+    // 这里兜住异常，保证"最多这一层没画出来"，进程还活着。
     LaunchedEffect(engine, revision, keysReady) {
-        engine.applyBase(base)
-        engine.applyOverlay(resolvedOverlay)
+        runCatching { engine.applyBase(base) }
+        runCatching { engine.applyOverlay(resolvedOverlay) }
     }
 
     // ---- 控件开关 ----
