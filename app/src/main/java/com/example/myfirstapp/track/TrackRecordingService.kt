@@ -19,6 +19,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import com.example.myfirstapp.R
+import com.example.myfirstapp.utils.MapSdkPrivacy
 
 /**
  * 轨迹记录前台服务（类似两步路"运动中"的常驻通知）：
@@ -41,6 +42,15 @@ class TrackRecordingService : Service() {
         // ForegroundServiceStartNotAllowedException——拉不回就优雅退出，不崩溃
         runCatching { startForeground(NOTI_ID, buildNotification("正在记录轨迹")) }
             .onFailure { stopSelf(); return }
+
+        // 进程被杀后服务被系统/闹钟重建：本进程是全新的，TrackRecorder 单例已丢，
+        // 先把落盘的快照接回来（记录点/距离/时长/暂停态一并复活）。
+        // 高德合规初始化必须补——后台拉起时不经过 MainActivity，隐私未同意则定位一律失败。
+        if (!TrackRecorder.isRecording) {
+            MapSdkPrivacy.init(this)
+            TrackRecorder.restore(this, startService = false)
+        }
+        // 恢复失败（无快照）时保持原行为：collect 收到 IDLE 会自行 stopSelf
 
         // 订阅记录器状态 → 更新通知 + 持有/释放 WakeLock + 整公里语音播报
         scope.launch {
@@ -84,9 +94,14 @@ class TrackRecordingService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // intent == null 说明服务被系统杀死后重建（START_STICKY）。此时若进程是新的，
-        // TrackRecorder 单例状态已丢（必然 IDLE），直接退场避免留下"僵尸通知"。
-        if (intent == null && !TrackRecorder.isRecording) {
+        // intent == null：服务被系统杀死后重建（START_STICKY）。此时进程往往是新的，
+        // TrackRecorder 单例状态已丢，先尝试从磁盘快照接回；接不回再退场，
+        // 避免留下"僵尸通知"（通知在、记录却没了）。
+        if (!TrackRecorder.isRecording) {
+            MapSdkPrivacy.init(this)
+            TrackRecorder.restore(this, startService = false)
+        }
+        if (!TrackRecorder.isRecording) {
             stopSelf()
             return START_NOT_STICKY
         }
@@ -99,7 +114,10 @@ class TrackRecordingService : Service() {
      * 本服务——拉得回就续命，拉不回（后台启动限制）也已是尽力而为。
      */
     override fun onTaskRemoved(rootIntent: Intent?) {
-        if (TrackRecorder.isRecording) scheduleRestart()
+        if (TrackRecorder.isRecording) {
+            TrackRecorder.flush()   // 划卡后进程随时可能被杀，先把最新状态落盘
+            scheduleRestart()
+        }
         super.onTaskRemoved(rootIntent)
     }
 

@@ -99,7 +99,8 @@ fun AppRoot() {
     ) { padding ->
         NavHost(
             navController = navController,
-            startDestination = "home",
+            // 从磁盘恢复的未结束记录：直接落在「运动」页，打开就看见记录还在
+            startDestination = if (TrackRecorder.restoredFromDisk) "record" else "home",
             modifier = Modifier.padding(padding)
         ) {
             composable("home") { HomeScreen(onOpenTrack = { id -> navController.navigateToTrackDetail(id) }) }

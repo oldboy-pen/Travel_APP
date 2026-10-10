@@ -47,7 +47,11 @@ enum class StepSensorStatus {
  * false、isWalking() 恒为 false、status 置为 NO_SENSOR / NO_PERMISSION，
  * 记录逻辑自动回退到纯 GPS 阈值过滤（不会崩溃或报错）。
  */
-class MotionSensorHelper(context: Context) : SensorEventListener {
+class MotionSensorHelper(
+    context: Context,
+    /** 起始步数：进程被杀后恢复记录时接回已累计的步数（默认 0 = 全新一段） */
+    initialSteps: Int = 0
+) : SensorEventListener {
 
     private val appContext = context.applicationContext
     private val sensorManager =
@@ -71,8 +75,8 @@ class MotionSensorHelper(context: Context) : SensorEventListener {
     var status: StepSensorStatus = StepSensorStatus.NO_SENSOR
         private set
 
-    /** 本段记录累计步数 */
-    private val totalSteps = AtomicInteger(0)
+    /** 本段记录累计步数（恢复场景从 [initialSteps] 起步，不丢历史步数） */
+    private val totalSteps = AtomicInteger(initialSteps)
 
     /** 距上次消费以来的新增步数（供每次定位回调查询后清零） */
     private val pendingSteps = AtomicInteger(0)
