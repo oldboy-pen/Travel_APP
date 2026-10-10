@@ -31,9 +31,23 @@ object OfflineRegionStore {
     /**
      * 全局「离线模式」开关：打开后地图**只**读本地存档，完全不发起瓦片网络请求
      * （飞行模式 / 省流量 / 验证离线覆盖率的场景）。
+     *
+     * ★ 为什么写成自定义 getter/setter 而不是 `var x by mutableStateOf() private set` + 一个
+     *   `fun setX(on: Boolean)`：属性委托会生成 JVM setter `setX(Z)V`，与同名的函数
+     *   **Platform declaration clash**（本次实测报错）。把持久化收进 setter 后，
+     *   外部直接 `OfflineRegionStore.offlineOnly = true` 即可，也不再需要第二个函数。
      */
-    var offlineOnly by mutableStateOf(false)
-        private set
+    var offlineOnly: Boolean
+        get() = _offlineOnly
+        set(value) {
+            if (_offlineOnly == value) return
+            _offlineOnly = value
+            // 走 SharedPreferences：这是全局偏好，不该混在区域清单 JSON 里
+            runCatching { prefs()?.edit()?.putBoolean(KEY_OFFLINE_ONLY, value)?.apply() }
+            revision++   // 换 provider 链，地图页据此重刷底图
+        }
+
+    private var _offlineOnly by mutableStateOf(false)
 
     @Volatile
     private var loaded = false
@@ -115,7 +129,8 @@ object OfflineRegionStore {
                 }
                 if (fixed != null) regions[i] = fixed
             }
-            offlineOnly = prefs()?.getBoolean(KEY_OFFLINE_ONLY, false) ?: false
+            // 直接写后端字段：走 setter 会顺带 revision++ 和回写 prefs，加载期都不该发生
+            _offlineOnly = prefs()?.getBoolean(KEY_OFFLINE_ONLY, false) ?: false
             loaded = true
         }
     }
@@ -216,13 +231,6 @@ object OfflineRegionStore {
         runCatching { MbTiles.open(OfflineStorage.elevationFile).deleteFile() }
         OfflineStorage.clearAll()
         save()
-    }
-
-    fun setOfflineOnly(on: Boolean) {
-        if (offlineOnly == on) return
-        offlineOnly = on
-        runCatching { prefs()?.edit()?.putBoolean(KEY_OFFLINE_ONLY, on)?.apply() }
-        revision++
     }
 
     private const val KEY_OFFLINE_ONLY = "offlineOnly"

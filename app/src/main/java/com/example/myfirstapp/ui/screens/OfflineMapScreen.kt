@@ -122,7 +122,7 @@ fun OfflineMapScreen(onBack: () -> Unit) {
                         Spacer(Modifier.width(6.dp))
                         Switch(
                             checked = OfflineRegionStore.offlineOnly,
-                            onCheckedChange = { OfflineRegionStore.setOfflineOnly(it) }
+                            onCheckedChange = { OfflineRegionStore.offlineOnly = it }
                         )
                         Spacer(Modifier.width(8.dp))
                     }
