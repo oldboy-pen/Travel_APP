@@ -3,7 +3,9 @@ package com.example.myfirstapp.globe
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import com.example.myfirstapp.mapsources.TileCrs
 import com.example.myfirstapp.mapsources.TileHttp
+import com.example.myfirstapp.mapsources.TileRasterizer
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.Executors
@@ -113,7 +115,35 @@ class GlobeTileLoader {
      * 底层先铺一层浅灰底：像天地图 cta_w 这种只画等高线和注记的透明层，
      * 直接叠在黑底上会变成一张黑图。
      */
-    private fun decodeSurface(key: TileKey, source: GlobeSource): Bitmap? {
+    private fun decodeSurface(key: TileKey, source: GlobeSource): Bitmap? =
+        if (source.crs == TileCrs.GCJ02) decodeReprojected(key, source) else decodeDirect(key, source)
+
+    /**
+     * GCJ-02 图源（高德 Web 瓦片）：逐像素重投影到球面的 WGS-84 墨卡托网格。
+     *
+     * 不能只做「瓦片号重映射」——GCJ 偏移约 500 m，z=11 一块瓦片约 19.6 km，
+     * 偏移仅占 0.025 个瓦片号，取整后落回同一格，残余偏差仍有 7 像素左右，
+     * 叠加的 GPS 轨迹会肉眼可见地偏离道路。复用 2D 地图的 [TileRasterizer]
+     * （17×17 网格点精确换算 + 双线性插值，误差远小于 1 像素），源瓦片自带 LRU 缓存。
+     */
+    private fun decodeReprojected(key: TileKey, source: GlobeSource): Bitmap? {
+        val pixels = TileRasterizer.rasterize(
+            templates = source.templates,
+            x = key.x,
+            y = key.y,
+            zoom = key.z,
+            sourceCrs = TileCrs.GCJ02,
+            targetCrs = TileCrs.WGS84,
+            subdomains = source.subdomains,
+            headers = source.headers,
+            cacheKeyPrefix = "globe:${source.id}:${source.tk.hashCode()}",
+            tkProvider = { source.tk }
+        ) ?: return null
+        return TileRasterizer.toBitmap(pixels)
+    }
+
+    /** WGS-84 图源（天地图/OpenTopoMap/自定义 XYZ）：网格一致，直接下载合成 */
+    private fun decodeDirect(key: TileKey, source: GlobeSource): Bitmap? {
         val out = Bitmap.createBitmap(SURFACE_TILE_PX, SURFACE_TILE_PX, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)
         canvas.drawColor(BLANK_COLOR)
