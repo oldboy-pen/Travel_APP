@@ -1,8 +1,7 @@
 package com.example.myfirstapp.track
 
 import android.content.Context
-import com.amap.api.location.AMapLocationClient
-import com.amap.api.location.AMapLocationClientOption
+import com.example.myfirstapp.location.AppLocationSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -141,7 +140,8 @@ object TrackNavigator {
     val state: StateFlow<NavigationState> = _state.asStateFlow()
 
     private var appContext: Context? = null
-    private var locationClient: AMapLocationClient? = null
+    /** 统一位置源：高德混合定位为主，无网自动回退系统 GPS */
+    private var locationClient: AppLocationSource? = null
     private var tickerJob: Job? = null
 
     private var track: Track? = null
@@ -211,8 +211,7 @@ object TrackNavigator {
     fun stop() {
         tickerJob?.cancel()
         tickerJob = null
-        runCatching { locationClient?.stopLocation() }
-        runCatching { locationClient?.onDestroy() }
+        runCatching { locationClient?.stop() }
         locationClient = null
         offStreak = 0
         if (_state.value.status != NavigationStatus.IDLE) {
@@ -264,29 +263,26 @@ object TrackNavigator {
     // ==================== 定位 ====================
 
     private fun startLocation(ctx: Context) {
-        locationClient = AMapLocationClient(ctx).apply {
-            setLocationOption(AMapLocationClientOption().apply {
-                locationMode = AMapLocationClientOption.AMapLocationMode.Hight_Accuracy
-                interval = 1000              // 1 秒一次（偏离判定需要连续确认）
-                isMockEnable = false
-            })
-            setLocationListener { loc ->
-                if (loc.errorCode != 0) {
-                    _state.value = _state.value.copy(
-                        error = "定位失败(code=${loc.errorCode})：${loc.errorInfo}"
-                    )
-                    return@setLocationListener
-                }
-                if (_state.value.status != NavigationStatus.NAVIGATING) return@setLocationListener
+        // 与记录器同理：无网时靠系统 GPS 顶上，否则"进山导航"直接失去位置
+        locationClient = AppLocationSource(
+            context = ctx,
+            intervalMs = 1000,               // 1 秒一次（偏离判定需要连续确认）
+            once = false,
+            needAddress = false,
+            onLocation = { loc ->
+                if (_state.value.status != NavigationStatus.NAVIGATING) return@AppLocationSource
                 onNewFix(
                     loc.latitude, loc.longitude, loc.bearing, loc.accuracy, loc.speed,
-                    loc.altitude,
-                    if (loc.time > 0) loc.time else System.currentTimeMillis(),
-                    loc.locationType
+                    if (loc.altitude.isNaN()) 0.0 else loc.altitude,
+                    loc.time,
+                    1   // locationType：1 = 卫星定位（可信）
                 )
+            },
+            onError = { msg ->
+                _state.value = _state.value.copy(error = msg)
             }
-        }
-        locationClient?.startLocation()
+        )
+        locationClient?.start()
     }
 
     private fun startTicker() {
@@ -462,7 +458,7 @@ object TrackNavigator {
             // 停止定位与计时，状态保留 ARRIVED 供 UI 展示
             tickerJob?.cancel()
             tickerJob = null
-            runCatching { locationClient?.stopLocation() }
+            runCatching { locationClient?.stop() }
         }
     }
 

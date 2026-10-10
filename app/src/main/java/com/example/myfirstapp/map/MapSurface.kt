@@ -20,6 +20,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.example.myfirstapp.mapsources.MapSource
 import com.example.myfirstapp.mapsources.MapSourceStore
+import com.example.myfirstapp.offline.OfflineRegionStore
 
 /**
  * 一屏地图的会话状态（由 [rememberMapSurfaceState] 创建，[MapSurface] 填充 engine）。
@@ -70,12 +71,16 @@ fun MapSurface(
     var keysReady by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         MapSourceStore.ensureLoaded(context)
+        // 离线区域清单：没加载过时引擎会以为"这个图源没有离线数据"，从而一直走在线 provider
+        OfflineRegionStore.ensureLoaded(context)
         MapEngineKeys.init(context)
         keysReady = true
     }
 
     // 读取图源状态（MapSourceStore 内部是 Compose State，会自动触发重组）
     val revision = MapSourceStore.revision
+    // 离线区域增删 / 离线模式开关：两者都会改变瓦片 provider 链，必须重刷底图
+    val offlineRevision = OfflineRegionStore.revision
     val rawBase = MapSourceStore.activeBase()
     val rawOverlay = MapSourceStore.activeOverlay()
 
@@ -172,7 +177,7 @@ fun MapSurface(
     // ---- 图源 / 叠加层变化 → 重建底图 ----
     // 换图源是用户高频操作，瓦片源构造/叠加层切换一旦抛异常不该带崩整屏，
     // 这里兜住异常，保证"最多这一层没画出来"，进程还活着。
-    LaunchedEffect(engine, revision, keysReady) {
+    LaunchedEffect(engine, revision, offlineRevision, keysReady) {
         runCatching { engine.applyBase(base) }
         runCatching { engine.applyOverlay(resolvedOverlay) }
     }

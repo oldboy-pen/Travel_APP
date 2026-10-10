@@ -27,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Person
@@ -104,7 +105,8 @@ fun TrackHistoryScreen(
     onOpenActivities: () -> Unit = {},
     onOpenTodo: () -> Unit = {},
     onOpenPace: () -> Unit = {},
-    onOpenCoord: () -> Unit = {}
+    onOpenCoord: () -> Unit = {},
+    onOpenOffline: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val repo = remember { TrackRepository.get(context) }
@@ -323,7 +325,8 @@ fun TrackHistoryScreen(
             ToolGrid(
                 onOpenTodo = onOpenTodo,
                 onOpenPace = onOpenPace,
-                onOpenCoord = onOpenCoord
+                onOpenCoord = onOpenCoord,
+                onOpenOffline = onOpenOffline
             )
         }
 
@@ -632,12 +635,20 @@ private fun FootprintEntryRow(
 private fun ToolGrid(
     onOpenTodo: () -> Unit,
     onOpenPace: () -> Unit,
-    onOpenCoord: () -> Unit
+    onOpenCoord: () -> Unit,
+    onOpenOffline: () -> Unit
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        ToolTile("日常清单", Icons.Default.Checklist, Modifier.weight(1f), onOpenTodo)
-        ToolTile("配速换算", Icons.Default.Speed, Modifier.weight(1f), onOpenPace)
-        ToolTile("经纬度转换", Icons.Default.Public, Modifier.weight(1f), onOpenCoord)
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            ToolTile("日常清单", Icons.Default.Checklist, Modifier.weight(1f), onOpenTodo)
+            ToolTile("配速换算", Icons.Default.Speed, Modifier.weight(1f), onOpenPace)
+            ToolTile("经纬度转换", Icons.Default.Public, Modifier.weight(1f), onOpenCoord)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            // 离线地图：出发前把要去的区域下下来，无网也能看图、定位、查海拔
+            ToolTile("离线地图", Icons.Default.DownloadForOffline, Modifier.weight(1f), onOpenOffline)
+            Spacer(Modifier.weight(2f))
+        }
     }
 }
 

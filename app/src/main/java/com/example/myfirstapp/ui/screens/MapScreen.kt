@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -181,6 +182,18 @@ fun MapScreen(viewModel: MapViewModel = viewModel(), onNavigate: (String) -> Uni
                         .align(Alignment.TopEnd)
                         .padding(top = 10.dp, end = 10.dp)
                 )
+                // 离线地图入口：下载离线区域 / 官方城市包 / 高程海拔
+                androidx.compose.material3.SmallFloatingActionButton(
+                    onClick = { onNavigate("offline") },
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(start = 10.dp, top = 56.dp)
+                ) {
+                    androidx.compose.material3.Icon(
+                        Icons.Default.DownloadForOffline,
+                        contentDescription = "离线地图"
+                    )
+                }
             }
         )
 
@@ -219,8 +232,12 @@ fun MapScreen(viewModel: MapViewModel = viewModel(), onNavigate: (String) -> Uni
                 }
                 Spacer(Modifier.height(10.dp))
 
+                // 海拔优先取离线 DEM（无网也能查），没有才退回 GPS 椭球高；
+                // 位置来源标出"离线GPS"，让用户知道现在是靠卫星而非网络定位
+                val altTag = state.altitudeMeters?.let { " · 海拔 ${"%.0f".format(it)} m" } ?: ""
+                val srcTag = if (state.locationProvider == "gps") " · 离线GPS" else ""
                 Text(
-                    "我的位置：${state.locationText ?: "定位中…"}",
+                    "我的位置：${state.locationText ?: "定位中…"}$altTag$srcTag",
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1
                 )
@@ -228,6 +245,7 @@ fun MapScreen(viewModel: MapViewModel = viewModel(), onNavigate: (String) -> Uni
                 // 先捕获到局部 val（state 是 by 委托属性，不能对其字段做 smart cast）
                 val destName = state.destinationName
                 val dest = state.destination
+                val destAlt = state.destAltitudeMeters?.let { " · 海拔 ${"%.0f".format(it)} m" } ?: ""
                 Text(
                     "已选目的地：${
                         when {
@@ -236,7 +254,7 @@ fun MapScreen(viewModel: MapViewModel = viewModel(), onNavigate: (String) -> Uni
                                 "%.5f, %.5f".format(dest.latitude, dest.longitude)
                             else -> "长按地图或上方输入"
                         }
-                    }",
+                    }$destAlt",
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1
                 )

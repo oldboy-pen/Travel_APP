@@ -80,6 +80,11 @@ class TencentMapEngine(context: Context) : MapEngine {
         map.moveCamera(CameraUpdateFactory.newLatLngZoom(target.toTencent(), zoom))
     }
 
+    override fun getCamera(): CameraState? = runCatching {
+        val cp = map.cameraPosition
+        CameraState(GeoPoint(cp.target.latitude, cp.target.longitude), cp.zoom)
+    }.getOrNull()
+
     override fun animateCamera(target: GeoPoint) {
         // 腾讯没有 changeLatLng，用 newCameraPosition 保持当前 zoom/tilt/rotation
         val cur = map.cameraPosition

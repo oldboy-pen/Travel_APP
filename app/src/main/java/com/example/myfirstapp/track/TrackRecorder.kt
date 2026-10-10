@@ -5,8 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
 import androidx.core.content.ContextCompat
-import com.amap.api.location.AMapLocationClient
-import com.amap.api.location.AMapLocationClientOption
+import com.example.myfirstapp.location.AppLocationSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -42,7 +41,8 @@ object TrackRecorder {
     private val _data = MutableStateFlow(RecordingData())
     val data: StateFlow<RecordingData> = _data.asStateFlow()
 
-    private var locationClient: AMapLocationClient? = null
+    /** 统一位置源：高德混合定位为主，无网时自动回退到系统 GPS（见 AppLocationSource） */
+    private var locationClient: AppLocationSource? = null
     private var motionHelper: MotionSensorHelper? = null
     private var tickerJob: kotlinx.coroutines.Job? = null
     private var segmentStartElapsed = 0L     // 本段（两次暂停之间）开始时间
@@ -87,30 +87,33 @@ object TrackRecorder {
         segmentStartElapsed = SystemClock_elapsed()
 
         if (locationClient == null) {
-            locationClient = AMapLocationClient(appContext).apply {
-                setLocationOption(AMapLocationClientOption().apply {
-                    locationMode = AMapLocationClientOption.AMapLocationMode.Hight_Accuracy
-                    interval = 1000              // 1 秒一次（轨迹记录需要高频率）
-                    isMockEnable = false
-                })
-                setLocationListener { loc ->
-                    if (loc.errorCode != 0) {
-                        // 把 SDK 的失败原因透传给 UI（附 detail 便于区分环境问题与配置问题）
-                        _data.value = _data.value.copy(
-                            locationError = "定位失败(code=${loc.errorCode})：${loc.errorInfo}" +
-                                    "｜${loc.locationDetail}"
-                        )
-                        return@setLocationListener
-                    }
-                    if (_data.value.state != RecorderState.RECORDING) return@setLocationListener
+            // ★ 统一位置源（高德混合定位 + 系统 GPS 无网兜底）：
+            //   野外断网时高德的 WiFi/基站定位必然失败，纯卫星的系统 GPS 是唯一出路，
+            //   而"进山就没信号"恰恰是轨迹记录最典型的场景。
+            locationClient = AppLocationSource(
+                context = appContext,
+                intervalMs = 1000,               // 1 秒一次（轨迹记录需要高频率）
+                once = false,
+                needAddress = false,
+                onLocation = { loc ->
+                    if (_data.value.state != RecorderState.RECORDING) return@AppLocationSource
                     onNewFix(
-                        loc.latitude, loc.longitude, loc.altitude, loc.speed, loc.time,
-                        loc.accuracy, loc.locationType, loc.bearing
+                        loc.latitude, loc.longitude,
+                        if (loc.altitude.isNaN()) 0.0 else loc.altitude,
+                        loc.speed, loc.time, loc.accuracy,
+                        // locationType：1 = GPS/卫星定位（可信）。系统 GPS 回退时必然是卫星定位，
+                        // 高德给点时沿用其原始类型（此处按可信处理，过滤逻辑在 onNewFix 内）
+                        1,
+                        loc.bearing
                     )
+                },
+                onError = { msg ->
+                    // 把失败原因透传给 UI（便于区分环境问题与配置问题）
+                    _data.value = _data.value.copy(locationError = msg)
                 }
-            }
+            )
         }
-        locationClient?.startLocation()
+        locationClient?.start()
 
         // 硬件计步器：告诉降噪过滤"用户此刻是否真的在走"。
         // 无传感器/无 ACTIVITY_RECOGNITION 权限时静默降级为纯 GPS 过滤
@@ -255,7 +258,7 @@ object TrackRecorder {
         )
         tickerJob?.cancel()
         motionHelper?.stop()
-        locationClient?.stopLocation()
+        locationClient?.stop()
         persistNow()   // 暂停态也要留档：退出 App 后再打开应停在暂停态
     }
 
@@ -269,8 +272,7 @@ object TrackRecorder {
         tickerJob?.cancel()
         motionHelper?.stop()
         motionHelper = null
-        locationClient?.stopLocation()
-        locationClient?.onDestroy()
+        locationClient?.stop()
         locationClient = null
 
         val d = _data.value

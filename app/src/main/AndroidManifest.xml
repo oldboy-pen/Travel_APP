@@ -22,6 +22,8 @@
     <!-- ============ 前台服务（轨迹记录保活，类似两步路） ============ -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- 离线地图瓦片下载（Android 14+ 要求显式声明 dataSync 类型） -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- Android 13+ 通知运行时权限 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- 后台保活：息屏后 CPU 不深睡（服务内持有 PARTIAL_WAKE_LOCK） -->
@@ -71,6 +73,12 @@
             android:name=".track.TrackNavigationService"
             android:exported="false"
             android:foregroundServiceType="location" />
+
+        <!-- 离线地图下载前台服务：一个城市上万张瓦片，必须能在后台/锁屏继续跑 -->
+        <service
+            android:name=".offline.OfflineDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <!-- GPX 文件分享 -->
         <provider

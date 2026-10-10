@@ -2,8 +2,6 @@ package com.example.myfirstapp.data
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
-import com.amap.api.location.AMapLocationClient
-import com.amap.api.location.AMapLocationClientOption
 import com.amap.api.maps.model.LatLng
 import com.amap.api.services.core.LatLonPoint
 import com.amap.api.services.geocoder.GeocodeQuery
@@ -19,6 +17,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import com.example.myfirstapp.location.AppLocationSource
+import com.example.myfirstapp.mapsources.GeoTransform
+import com.example.myfirstapp.offline.ElevationStore
 
 /** 地图页 UI 状态（一次快照，交给 Compose 渲染） */
 data class MapUiState(
@@ -29,7 +30,13 @@ data class MapUiState(
     val routePoints: List<LatLng> = emptyList(), // 规划出的驾车路线
     val routeInfo: String? = null,       // "x.x 公里 · 约 x 分钟"
     val planFailed: Boolean = false,     // 最近一次路线规划是否失败（App内导航据此提示）
-    val message: String? = null          // Toast 消息
+    val message: String? = null,         // Toast 消息
+    /** 当前位置的海拔（米）：优先取离线 DEM，没有则退回 GPS 椭球高 */
+    val altitudeMeters: Double? = null,
+    /** 位置来源："gps"=系统卫星（离线可用）/ "amap"=高德混合定位（需联网） */
+    val locationProvider: String? = null,
+    /** 目的地海拔（米），长按选点时从离线 DEM 查 */
+    val destAltitudeMeters: Double? = null
 )
 
 /**
@@ -43,7 +50,8 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(MapUiState())
     val uiState: StateFlow<MapUiState> = _uiState.asStateFlow()
 
-    private var locationClient: AMapLocationClient? = null
+    /** 统一位置源：高德混合定位 + 系统 GPS 无网兜底（见 AppLocationSource） */
+    private var locationSource: AppLocationSource? = null
     private val routeSearch = RouteSearch(application)
     private val geocodeSearch = GeocodeSearch(application)
     private var lastGeocodeQuery = ""
@@ -72,31 +80,59 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 开始持续定位（需已获得定位权限且用户已同意隐私政策） */
     fun startLocation() {
-        if (locationClient != null) return
-        locationClient = AMapLocationClient(getApplication<Application>()).apply {
-            setLocationOption(AMapLocationClientOption().apply {
-                locationMode = AMapLocationClientOption.AMapLocationMode.Hight_Accuracy
-                isOnceLocation = false            // 持续定位
-                interval = 3000                   // 每 3 秒一次
-                isNeedAddress = true              // 返回文字地址
-            })
-            setLocationListener { loc ->
-                if (loc.errorCode == 0) {
-                    _uiState.update {
-                        it.copy(
-                            myLocation = LatLng(loc.latitude, loc.longitude),
-                            locationText = loc.poiName?.ifEmpty { null } ?: loc.address,
-                            message = null
-                        )
-                    }
-                } else {
-                    _uiState.update {
-                        it.copy(message = "定位失败：${loc.errorInfo}（code=${loc.errorCode}）")
-                    }
+        if (locationSource != null) return
+        locationSource = AppLocationSource(
+            context = getApplication(),
+            intervalMs = 3000,
+            once = false,
+            needAddress = true,          // 返回文字地址
+            onLocation = { loc ->
+                _uiState.update {
+                    it.copy(
+                        myLocation = LatLng(loc.latitude, loc.longitude),
+                        locationText = loc.address,
+                        // GPS 的椭球高误差较大，有离线 DEM 时以 DEM 为准（在 refreshAltitude 里覆盖）
+                        altitudeMeters = if (loc.altitude.isNaN()) null else loc.altitude,
+                        locationProvider = loc.provider,
+                        message = null
+                    )
+                }
+                refreshAltitude()
+            },
+            onError = { msg ->
+                // 无网时高德失败是常态，AppLocationSource 会自动转 GPS；
+                // 只有 GPS 这条路也断了（没权限 / 系统定位没开）才提示用户，避免 Toast 刷屏
+                if (msg.contains("权限") || msg.contains("GPS")) {
+                    _uiState.update { it.copy(message = msg) }
                 }
             }
-            startLocation()
+        ).apply { start() }
+    }
+
+    /**
+     * 刷新当前位置/目的地的海拔。
+     *
+     * ★ 优先级：离线 DEM（[ElevationStore]）> GPS 椭球高。
+     *   DEM 是相对大地水准面的海拔，比 GPS 给的椭球高更接近"地图上标注的高度"，
+     *   而且查的是本地文件 —— 无网时这是唯一能拿到海拔的途径。
+     * 坐标为 GCJ-02（业务口径），DEM 是 WGS-84，边界处转换。
+     */
+    fun refreshAltitude() {
+        val s = _uiState.value
+        val my = s.myLocation
+        val dest = s.destination
+        val myAlt = if (my != null) lookupElevation(my.latitude, my.longitude)
+            ?: s.altitudeMeters else null
+        val destAlt = if (dest != null) lookupElevation(dest.latitude, dest.longitude) else null
+        if (myAlt != s.altitudeMeters || destAlt != s.destAltitudeMeters) {
+            _uiState.update { it.copy(altitudeMeters = myAlt, destAltitudeMeters = destAlt) }
         }
+    }
+
+    /** GCJ-02 → WGS-84 → 查离线 DEM */
+    private fun lookupElevation(lat: Double, lng: Double): Double? {
+        val w = GeoTransform.gcj02ToWgs84(lng, lat)   // 返回 [lng, lat]
+        return runCatching { ElevationStore.elevationAt(w[1], w[0]) }.getOrNull()
     }
 
     /** 设置目的地（长按地图 / 手动输入都走这里）。改目的地会清掉旧路线 */
@@ -110,6 +146,8 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                 planFailed = false
             )
         }
+        // 顺带查一次目的地海拔（离线 DEM，无网也能查）
+        _uiState.update { it.copy(destAltitudeMeters = lookupElevation(latLng.latitude, latLng.longitude)) }
     }
 
     /**
@@ -221,9 +259,8 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
-        locationClient?.stopLocation()
-        locationClient?.onDestroy()
-        locationClient = null
+        locationSource?.stop()
+        locationSource = null
         super.onCleared()
     }
 }

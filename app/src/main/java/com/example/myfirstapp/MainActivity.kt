@@ -21,6 +21,8 @@ import com.example.myfirstapp.track.GeoUtils
 import com.example.myfirstapp.track.RecorderState
 import com.example.myfirstapp.track.TrackRecorder
 import com.example.myfirstapp.track.TrackRecordingService
+import com.example.myfirstapp.offline.OfflineRegionStore
+import com.example.myfirstapp.offline.OfflineStorage
 import com.example.myfirstapp.ui.navigation.AppRoot
 import com.example.myfirstapp.ui.theme.MyFirstAppTheme
 import com.example.myfirstapp.utils.MapSdkPrivacy
@@ -47,6 +49,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // 离线存储目录 + 区域清单：下载服务可能在任何界面之前被拉起，
+        // 这里提前初始化，保证 OfflineStorage 拿得到 filesDir
+        OfflineStorage.init(this)
+        OfflineRegionStore.ensureLoaded(this)
 
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val agreed = prefs.getBoolean(KEY_PRIVACY, false)

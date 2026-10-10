@@ -41,6 +41,7 @@ import com.example.myfirstapp.ui.screens.FootprintPhotosScreen
 import com.example.myfirstapp.globe.GlobeScreen
 import com.example.myfirstapp.ui.screens.FootprintTracksScreen
 import com.example.myfirstapp.ui.screens.MapScreen
+import com.example.myfirstapp.ui.screens.OfflineMapScreen
 import com.example.myfirstapp.ui.screens.PaceConverterScreen
 import com.example.myfirstapp.ui.screens.RecordScreen
 import com.example.myfirstapp.ui.screens.TrackNavigationScreen
@@ -121,7 +122,8 @@ fun AppRoot() {
                     onOpenActivities = { navController.navigate("footprintActivities") },
                     onOpenTodo = { navController.navigate("todo") },
                     onOpenPace = { navController.navigate("pace") },
-                    onOpenCoord = { navController.navigate("coord") }
+                    onOpenCoord = { navController.navigate("coord") },
+                    onOpenOffline = { navController.navigate("offline") }
                 )
             }
             // ---- 「我的 → 足迹」三个子页（各自独立页，带返回键） ----
@@ -146,6 +148,10 @@ fun AppRoot() {
             // 工具：3D 地球（OpenGL 自绘球面 + 瓦片地形，入口在运动页左侧按钮）
             composable("globe") {
                 GlobeScreen(onBack = { navController.popBackStack() })
+            }
+            // 工具：离线地图（离线区域下载 / 官方城市包 / 高程海拔）
+            composable("offline") {
+                OfflineMapScreen(onBack = { navController.popBackStack() })
             }
             // ---- 「我的 → 工具」三个小工具（全屏页） ----
             composable("todo") {

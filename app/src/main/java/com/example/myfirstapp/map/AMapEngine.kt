@@ -204,6 +204,11 @@ class AMapEngine(context: Context) : MapEngine {
         if (animate) aMap.animateCamera(update) else aMap.moveCamera(update)
     }
 
+    override fun getCamera(): CameraState? = runCatching {
+        val cp = aMap.cameraPosition
+        CameraState(GeoPoint(cp.target.latitude, cp.target.longitude), cp.zoom)
+    }.getOrNull()
+
     // ==================== 覆盖物 ====================
 
     override fun addPolyline(points: List<GeoPoint>, widthPx: Float, colorArgb: Int) {

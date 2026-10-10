@@ -11,16 +11,19 @@ import android.graphics.drawable.BitmapDrawable
 import android.location.Location
 import android.view.View
 import androidx.core.content.ContextCompat
-import com.amap.api.location.AMapLocationClient
-import com.amap.api.location.AMapLocationClientOption
+import com.example.myfirstapp.location.AppLocationSource
 import com.example.myfirstapp.mapsources.GeoTransform
 import com.example.myfirstapp.mapsources.MapSource
 import com.example.myfirstapp.mapsources.MapSourceStore
 import com.example.myfirstapp.mapsources.TileHttp
+import com.example.myfirstapp.offline.OfflineRegionStore
+import com.example.myfirstapp.offline.OfflineStorage
+import com.example.myfirstapp.offline.OfflineTileProviders
 import org.osmdroid.config.Configuration
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint as OsmGeoPoint
 import org.osmdroid.util.MapTileIndex
+import org.osmdroid.tileprovider.MapTileProviderBase
 import org.osmdroid.tileprovider.MapTileProviderBasic
 import org.osmdroid.tileprovider.tilesource.ITileSource
 import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
@@ -79,6 +82,9 @@ class OsmdroidEngine(context: Context) : MapEngine {
     /** 半透明叠加层（等高线/天地图标注等） */
     private val overlayLayers = mutableListOf<TileLayer>()
 
+    /** 当前主底图 provider 的指纹（图源 + 离线开关 + 区域版本），用于避免无谓的 provider 重建 */
+    private var baseSourceKey: String? = null
+
     private var longClickCb: ((GeoPoint) -> Unit)? = null
     private var gestureCb: (() -> Unit)? = null
 
@@ -89,7 +95,7 @@ class OsmdroidEngine(context: Context) : MapEngine {
      * 这里补一个内置源（高德定位，与 App 其它页面同一套位置来源，室内也能定位），
      * 由它驱动官方的位置图层 [myLocationOverlay]。
      */
-    private val locationProvider = AMapLocationProvider(appContext)
+    private val locationProvider = OsmLocationProvider(appContext)
 
     /**
      * 当前位置图层（osmdroid 官方组件）：负责画定位点与精度圈，位置有两个来源——
@@ -240,8 +246,19 @@ class OsmdroidEngine(context: Context) : MapEngine {
             runCatching { mapView.setTileSource(TileSourceFactory.MAPNIK) }
             return
         }
-        // 第一层作为主瓦片源（不透明，盖住默认 OSM）
-        mapView.setTileSource(buildSource("${source.id}_base0", templates[0], source))
+        // 第一层作为主瓦片源（不透明，盖住默认 OSM）。
+        // ★ 离线优先：该图源有已就绪的离线区域时，换成「存档 → 近似 → 在线」的 provider 链，
+        //   这样无网时也能出图（详见 OfflineTileProviders）。
+        val ts = buildSource("${source.id}_base0", templates[0], source)
+        val offlineKey = offlineKeyOf(source.id)
+        if (offlineKey != baseSourceKey) {
+            runCatching { mapView.setTileProvider(providerFor(source.id, ts)) }
+            baseSourceKey = offlineKey
+        } else {
+            // provider 链没变（同一图源、离线区域与开关都没动），只换 tileSource 即可，
+            // 省掉一次 TilesOverlay 重建（会闪一下）
+            runCatching { mapView.setTileSource(ts) }
+        }
         // 其余层作为透明叠加层叠在主源之上（如天地图"矢量+注记"的注记层）
         for (i in 1 until templates.size) {
             val layer = buildLayer("${source.id}_base$i", templates[i], source)
@@ -298,6 +315,32 @@ class OsmdroidEngine(context: Context) : MapEngine {
         mapView.invalidate()
     }
 
+    /**
+     * ★ 构造瓦片提供器：离线优先。
+     *
+     * 该图源存在已就绪的离线区域时，返回手组的「磁盘缓存 → MBTiles 存档 → 近似 → 在线」链
+     * （[OfflineTileProviders]）；否则用 osmdroid 默认的 [MapTileProviderBasic]（纯在线）。
+     * 「离线模式」开关打开时即便没有存档也走离线链 —— 此时链里没有可联网的 provider，
+     * 表现为完全不出图，这是用户显式要求的"零流量"。
+     */
+    private fun providerFor(sourceId: String, tileSource: ITileSource): MapTileProviderBase {
+        val files = OfflineRegionStore.readyFor(sourceId).map { OfflineStorage.regionFile(it.id) }
+        val archives = OfflineTileProviders.openArchives(files)
+        val offlineOnly = OfflineRegionStore.offlineOnly
+        return if (archives.isNotEmpty() || offlineOnly) {
+            OfflineTileProviders.create(appContext, tileSource, archives, offlineOnly)
+        } else {
+            MapTileProviderBasic(appContext, tileSource)
+        }
+    }
+
+    /**
+     * provider 链的"指纹"：图源 + 离线模式开关 + 区域清单版本。
+     * 三者都没变时不要重建 provider（setTileProvider 会重建底图 TilesOverlay，肉眼可见闪一下）。
+     */
+    private fun offlineKeyOf(sourceId: String): String =
+        "$sourceId|${OfflineRegionStore.offlineOnly}|${OfflineRegionStore.revision}"
+
     /** 按 XYZ 模板构造一个 osmdroid 在线瓦片源（WGS84 原生网格，无重投影） */
     private fun buildSource(name: String, template: String, source: MapSource): ITileSource {
         val sub = source.subdomains
@@ -322,8 +365,9 @@ class OsmdroidEngine(context: Context) : MapEngine {
 
     /** 构造一个透明背景的瓦片叠加层 + 其瓦片提供器（用于复合底图层 / 半透明叠加源） */
     private fun buildLayer(name: String, template: String, source: MapSource): TileLayer {
-        val provider = MapTileProviderBasic(appContext)
-        provider.setTileSource(buildSource(name, template, source))
+        // 叠加层同样走离线优先：等高线/天地图注记也能被离线下载
+        val tileSource = buildSource(name, template, source)
+        val provider = providerFor(source.id, tileSource)
         val overlay = TilesOverlay(provider, appContext).apply {
             // 透明加载底色：osmdroid 6.1.20 只有 mLoadingBackgroundColor（默认黑色），
             // 不设会在瓦片加载瞬间闪黑块；该类没有 backgroundColor 字段，不要写。
@@ -341,10 +385,10 @@ class OsmdroidEngine(context: Context) : MapEngine {
         list.clear()
     }
 
-    /** 瓦片叠加层与其提供器的一对一封装 */
+    /** 瓦片叠加层与其提供器的一对一封装（provider 可能是纯在线的，也可能是离线优先链） */
     private data class TileLayer(
         val overlay: TilesOverlay,
-        val provider: MapTileProviderBasic
+        val provider: MapTileProviderBase
     )
 
     // ==================== 控件 ====================
@@ -362,6 +406,12 @@ class OsmdroidEngine(context: Context) : MapEngine {
         controller.setZoom(zoom.toDouble())
         controller.setCenter(w)
     }
+
+    override fun getCamera(): CameraState? = runCatching {
+        val c = mapView.mapCenter as OsmGeoPoint
+        // osmdroid 内部是 WGS-84，接口契约是 GCJ-02，边界处转回去
+        CameraState(fromWgs(c.latitude, c.longitude), mapView.zoomLevelDouble.toFloat())
+    }.getOrNull()
 
     override fun animateCamera(target: GeoPoint) {
         controller.animateTo(toWgs(target))
@@ -569,10 +619,10 @@ class OsmdroidEngine(context: Context) : MapEngine {
      *   enabled 状态，业务层后续喂进来的位置照样能画出来（官方组件 draw 的前提就是
      *   isMyLocationEnabled()，返回 false 会让整张位置图层彻底不画）。
      */
-    private inner class AMapLocationProvider(private val ctx: Context) : IMyLocationProvider {
+    private inner class OsmLocationProvider(private val ctx: Context) : IMyLocationProvider {
 
         private var consumer: IMyLocationConsumer? = null
-        private var client: AMapLocationClient? = null
+        private var source: AppLocationSource? = null
         private var lastLocation: Location? = null
 
         override fun startLocationProvider(myLocationConsumer: IMyLocationConsumer): Boolean {
@@ -591,36 +641,33 @@ class OsmdroidEngine(context: Context) : MapEngine {
         }
 
         private fun startClient() {
-            if (client != null || !hasLocationPermission()) return
+            if (source != null || !hasLocationPermission()) return
             runCatching {
-                client = AMapLocationClient(ctx).apply {
-                    setLocationOption(AMapLocationClientOption().apply {
-                        locationMode = AMapLocationClientOption.AMapLocationMode.Hight_Accuracy
-                        isOnceLocation = false      // 持续定位
-                        interval = 2000             // 2 秒一次（与高德蓝点 3s 量级一致）
-                        isNeedAddress = false       // 只要坐标，省流量
-                    })
-                    setLocationListener { loc ->
-                        if (loc.errorCode != 0) return@setLocationListener
-                        val l = wgsLocation(loc.latitude, loc.longitude, loc.accuracy, loc.bearing)
+                // ★ 走统一位置源而不是裸的高德定位：无网场景下高德的 WiFi/基站定位必然失败，
+                //   而系统 GPS 是纯卫星定位 —— 户外离线时蓝点全靠它（详见 AppLocationSource）。
+                source = AppLocationSource(
+                    context = ctx,
+                    intervalMs = 2000,               // 2 秒一次（与高德蓝点 3s 量级一致）
+                    once = false,                    // 持续定位
+                    needAddress = false,             // 只要坐标，省流量
+                    onLocation = { loc ->
+                        val l = wgsLocation(
+                            loc.latitude, loc.longitude,
+                            if (loc.accuracy > 0f) loc.accuracy else -1f,
+                            loc.bearing
+                        )
                         lastLocation = l
-                        consumer?.onLocationChanged(l, this@AMapLocationProvider)
+                        consumer?.onLocationChanged(l, this@OsmLocationProvider)
                         // 内置定位也要把位置抛给业务层（首次定位回中等），与高德引擎的行为对齐
                         locationCb?.invoke(GeoPoint(loc.latitude, loc.longitude))
                     }
-                    startLocation()
-                }
+                ).apply { start() }
             }
         }
 
         private fun stopClient() {
-            client?.let { c ->
-                runCatching {
-                    c.stopLocation()
-                    c.onDestroy()
-                }
-            }
-            client = null
+            source?.stop()
+            source = null
         }
     }
 
@@ -748,6 +795,8 @@ class OsmdroidEngine(context: Context) : MapEngine {
         @Synchronized
         fun configure(ctx: Context) {
             if (configured) return
+            // 离线目录要在任何存档读写之前初始化（下载服务可能比地图更早起来）
+            OfflineStorage.init(ctx)
             val c = Configuration.getInstance()
             // 写到应用私有目录，避免 Android 9+ 外部存储权限问题
             val base = File(ctx.filesDir, "osmdroid")

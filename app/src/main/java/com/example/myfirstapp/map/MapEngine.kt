@@ -15,6 +15,15 @@ enum class MapEngineKind(val label: String) {
     OSMDROID("osmdroid")
 }
 
+/**
+ * 当前镜头状态（业务口径坐标 GCJ-02）。
+ * 供"按当前视口下载离线地图"这类需要知道"用户现在在看哪"的场景使用。
+ */
+data class CameraState(
+    val center: GeoPoint,
+    val zoom: Float
+)
+
 /** 地图控件的开关（各家控件名字不一样，统一抽出来） */
 data class MapUiSettings(
     val zoomControls: Boolean = false,        // 右下角缩放按钮
@@ -76,6 +85,15 @@ interface MapEngine {
     fun animateCamera(target: GeoPoint, zoom: Float)
     /** 把一批点完整地框进视野 */
     fun fitBounds(points: List<GeoPoint>, paddingPx: Int, animate: Boolean = false)
+
+    /**
+     * 读取当前镜头（中心点 + 缩放级别）。
+     *
+     * 默认返回 null：不强制每家引擎都实现（百度 SDK 的 MapStatus 坐标系受
+     * `setCoordType` 影响，取值不可靠，宁可不给也不要给错的）。
+     * 调用方必须处理 null —— 目前只有"按当前视口圈选离线区域"用得到。
+     */
+    fun getCamera(): CameraState? = null
 
     // ==================== 覆盖物 ====================
     /** 画轨迹线。widthPx 为屏幕像素，colorArgb 为 ARGB 值 */
