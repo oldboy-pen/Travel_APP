@@ -45,6 +45,10 @@ import kotlin.math.roundToInt
  * - 「恢复默认」回到 [defaultColor]，确认/取消由 [onConfirm]/[onDismiss] 处理。
  *
  * 颜色一律用 ARGB Int（与 MapEngine.addPolyline 一致），内部转 HSV 供拖拽。
+ *
+ * @param minAlpha 透明度下限（0~1）。透明度条「按下即生效」，给地图画线用时很容易误触到 0，
+ *                 线就变全透明、看起来像"轨迹从地图上消失了"。地图线色建议传
+ *                 [TrackColorStore.MIN_LINE_ALPHA] 换算出的值（25%），拖到最左也只是半透明。
  */
 @Composable
 fun ColorPickerDialog(
@@ -52,14 +56,18 @@ fun ColorPickerDialog(
     initialColor: Int,
     defaultColor: Int,
     onConfirm: (Int) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    minAlpha: Float = 0f
 ) {
+    val alphaFloor = minAlpha.coerceIn(0f, 1f)
     // initial → HSV
     val hsv = remember { FloatArray(3).also { AColor.colorToHSV(initialColor, it) } }
     var hue by remember { mutableFloatStateOf(hsv[0]) }
     var sat by remember { mutableFloatStateOf(hsv[1]) }
     var value by remember { mutableFloatStateOf(hsv[2]) }
-    var alpha by remember { mutableFloatStateOf((initialColor ushr 24) / 255f) }
+    var alpha by remember {
+        mutableFloatStateOf(((initialColor ushr 24) / 255f).coerceAtLeast(alphaFloor))
+    }
 
     val current = AColor.HSVToColor(floatArrayOf(hue, sat, value)).let { rgb ->
         (alpha.roundToInt() shl 24) or (rgb and 0x00FFFFFF)
@@ -124,22 +132,27 @@ fun ColorPickerDialog(
 
                 Spacer(Modifier.height(12.dp))
 
-                // ---- 透明度条（轨迹线常不透明，但保留完整取色能力）----
+                // ---- 透明度条：取值区间是 [alphaFloor, 1]，最左端就是允许的最低不透明度 ----
                 Canvas(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(20.dp)
                         .clip(MaterialTheme.shapes.small)
                         .pointerInput(Unit) {
+                            // ★ PointerInputScope.size 是 IntSize（Int），不是 DrawScope 的 Size（Float）
                             detectDragGestures(
-                                onDragStart = { p -> alpha = (p.x / size.width).coerceIn(0f, 1f) },
-                                onDrag = { c, _ -> alpha = (c.position.x / size.width).coerceIn(0f, 1f) }
+                                onDragStart = { p ->
+                                    alpha = alphaAt(p.x, size.width.toFloat(), alphaFloor)
+                                },
+                                onDrag = { ch, _ ->
+                                    alpha = alphaAt(ch.position.x, size.width.toFloat(), alphaFloor)
+                                }
                             )
                         }
                 ) {
                     val c = Color(AColor.HSVToColor(floatArrayOf(hue, sat, value)))
-                    drawRect(Brush.horizontalGradient(listOf(c.copy(alpha = 0f), c)))
-                    val cx = size.width * alpha
+                    drawRect(Brush.horizontalGradient(listOf(c.copy(alpha = alphaFloor), c)))
+                    val cx = size.width * alphaPos(alpha, alphaFloor)
                     drawRect(
                         Color.White,
                         topLeft = Offset(cx - 3f, 0f),
@@ -182,4 +195,20 @@ fun ColorPickerDialog(
             }
         }
     )
+}
+
+/**
+ * 透明度条：手指横向位置 → alpha，取值区间 [floor, 1]。
+ * 放在文件顶层：Composable 内的局部函数必须"先声明后使用"，而它在上方的 Canvas 里被调用。
+ */
+private fun alphaAt(x: Float, width: Float, floor: Float): Float {
+    if (width <= 0f) return 1f
+    val ratio = (x / width).coerceIn(0f, 1f)
+    return floor + ratio * (1f - floor)
+}
+
+/** alpha → 游标在条上的相对位置（0~1），与 [alphaAt] 互为逆运算 */
+private fun alphaPos(alpha: Float, floor: Float): Float {
+    val span = 1f - floor
+    return if (span <= 0f) 0f else ((alpha - floor) / span).coerceIn(0f, 1f)
 }

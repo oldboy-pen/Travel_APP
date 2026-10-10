@@ -44,6 +44,15 @@ object TrackColorStore {
     private val _liveColor = MutableStateFlow(DEFAULT_LIVE)
     val liveColor: StateFlow<Int> = _liveColor.asStateFlow()
 
+    /**
+     * 地图线色的最低不透明度（25%）。
+     *
+     * 背景：取色器的透明度条「按下即生效」，改色时很容易把 alpha 拖到 0，
+     * 线被画成全透明 —— 表现就是"改完颜色轨迹从地图上消失了"。
+     * 这里在【读写两端】都兜底，低于该值的颜色一律补成完全不透明（RGB 保留）。
+     */
+    const val MIN_LINE_ALPHA = 0x40
+
     /** 叠加参考轨迹的自定义颜色表：id → ARGB，缺失即用 [DEFAULT_OVERLAY] */
     private val _overlayColors = MutableStateFlow<Map<String, Int>>(emptyMap())
     val overlayColors: StateFlow<Map<String, Int>> = _overlayColors.asStateFlow()
@@ -53,38 +62,51 @@ object TrackColorStore {
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    /**
+     * 修掉"看不见的线色"：alpha 低于 [MIN_LINE_ALPHA] 时补到完全不透明，RGB 原样保留。
+     *
+     * 只作用于【存下来要给地图画线用】的颜色；[withAlpha] 那种运行时主动降透明的场景不经过这里。
+     * 存量脏数据（alpha=0 的历史记录）在读取时也会被自动修好，无需清数据。
+     */
+    fun sanitize(argb: Int): Int =
+        if ((argb ushr 24) < MIN_LINE_ALPHA) (argb and 0x00FFFFFF) or 0xFF000000.toInt()
+        else argb
+
     /** 从 SharedPreferences 载入（各地图页与图层面板进入时调用，重复调用无副作用） */
     fun ensureLoaded(context: Context) {
         if (loaded) return
         loaded = true
         val p = prefs(context)
-        _navColor.value = p.getInt(KEY_NAV, DEFAULT_NAV)
-        _liveColor.value = p.getInt(KEY_LIVE, DEFAULT_LIVE)
+        _navColor.value = sanitize(p.getInt(KEY_NAV, DEFAULT_NAV))
+        _liveColor.value = sanitize(p.getInt(KEY_LIVE, DEFAULT_LIVE))
         // overlay_ 前缀的全部读出来，一次建表（轨迹条数很少，不必懒加载）
         _overlayColors.value = p.all.mapNotNull { (k, v) ->
             if (!k.startsWith(KEY_OVERLAY_PREFIX)) return@mapNotNull null
             val color = v as? Int ?: return@mapNotNull null
-            k.removePrefix(KEY_OVERLAY_PREFIX) to color
+            k.removePrefix(KEY_OVERLAY_PREFIX) to sanitize(color)
         }.toMap()
     }
 
     fun setNavColor(context: Context, argb: Int) {
-        _navColor.value = argb
-        prefs(context).edit().putInt(KEY_NAV, argb).apply()
+        val safe = sanitize(argb)
+        _navColor.value = safe
+        prefs(context).edit().putInt(KEY_NAV, safe).apply()
     }
 
     fun setLiveColor(context: Context, argb: Int) {
-        _liveColor.value = argb
-        prefs(context).edit().putInt(KEY_LIVE, argb).apply()
+        val safe = sanitize(argb)
+        _liveColor.value = safe
+        prefs(context).edit().putInt(KEY_LIVE, safe).apply()
     }
 
-    /** 某条叠加轨迹的线色（未自定义 → [DEFAULT_OVERLAY]） */
-    fun overlayColorOf(id: String): Int = _overlayColors.value[id] ?: DEFAULT_OVERLAY
+    /** 某条叠加轨迹的线色（未自定义 → [DEFAULT_OVERLAY]；透明色会被 [sanitize] 修正） */
+    fun overlayColorOf(id: String): Int = sanitize(_overlayColors.value[id] ?: DEFAULT_OVERLAY)
 
     /** 给某条叠加轨迹单独设色（按 id 持久化，与全局的 nav/live 互不影响） */
     fun setOverlayColor(context: Context, id: String, argb: Int) {
-        _overlayColors.value = _overlayColors.value + (id to argb)
-        prefs(context).edit().putInt(KEY_OVERLAY_PREFIX + id, argb).apply()
+        val safe = sanitize(argb)
+        _overlayColors.value = _overlayColors.value + (id to safe)
+        prefs(context).edit().putInt(KEY_OVERLAY_PREFIX + id, safe).apply()
     }
 
     /** 清掉某条轨迹的自定义色（轨迹被删除时一起清理，避免残留死条目） */

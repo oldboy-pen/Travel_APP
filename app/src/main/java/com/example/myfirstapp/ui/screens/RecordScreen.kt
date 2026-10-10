@@ -1422,6 +1422,8 @@ private fun TrackingMapView(
             title = "轨迹颜色：${t.name}",
             initialColor = TrackColorStore.overlayColorOf(t.id),
             defaultColor = TrackColorStore.DEFAULT_OVERLAY,
+            // 线是画在地图上的，透明度拖到 0 就"消失"了，这里设下限
+            minAlpha = TrackColorStore.MIN_LINE_ALPHA / 255f,
             onConfirm = { argb ->
                 TrackColorStore.setOverlayColor(context, t.id, argb)
                 colorPicking = null

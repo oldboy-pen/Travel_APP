@@ -293,6 +293,7 @@ private fun TrackColorSection() {
             title = "导航参考轨迹颜色",
             initialColor = navColor,
             defaultColor = TrackColorStore.DEFAULT_NAV,
+            minAlpha = TrackColorStore.MIN_LINE_ALPHA / 255f,
             onConfirm = {
                 TrackColorStore.setNavColor(context, it)
                 pickNav = false
@@ -305,6 +306,7 @@ private fun TrackColorSection() {
             title = "记录 / 生成轨迹颜色",
             initialColor = liveColor,
             defaultColor = TrackColorStore.DEFAULT_LIVE,
+            minAlpha = TrackColorStore.MIN_LINE_ALPHA / 255f,
             onConfirm = {
                 TrackColorStore.setLiveColor(context, it)
                 pickLive = false
